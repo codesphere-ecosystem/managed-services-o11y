@@ -1,0 +1,10 @@
+apiVersion: 1
+
+# The ClickHouse plugin ships OTel and ClickHouse dashboards; load them as installed.
+providers:
+  - name: clickhouse-plugin
+    folder: ClickHouse
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/plugins/grafana-clickhouse-datasource/dashboards
