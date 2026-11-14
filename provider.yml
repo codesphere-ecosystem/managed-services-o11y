@@ -34,7 +34,6 @@ secretsSchema:
     grafanaAdminPassword:
       type: string
       format: password
-      pattern: ^[a-zA-Z0-9]{32}$
     grafanaDbPassword:
       type: string
       format: password
