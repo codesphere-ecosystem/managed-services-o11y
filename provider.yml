@@ -24,19 +24,25 @@ secretsSchema:
   properties:
     otlpToken:
       type: string
-      description: "Token to protect otlp ingestion "
+      format: password
+      pattern: ^[a-f0-9]{64}$
+      description: Bearer token senders put in the Authorization header of OTLP requests.
     clickhousePassword:
       type: string
-      description: ""
+      format: password
+      pattern: ^[a-zA-Z0-9]{32}$
     grafanaAdminPassword:
       type: string
-      description: ""
+      format: password
+      pattern: ^[a-zA-Z0-9]{32}$
     grafanaDbPassword:
       type: string
-      description: ""
+      format: password
+      pattern: ^[a-zA-Z0-9]{32}$
     grafanaDbSuperuserPassword:
       type: string
-      description: ""
+      format: password
+      pattern: ^[a-zA-Z0-9]{32}$
   required:
     - otlpToken
     - clickhousePassword
