@@ -1,0 +1,371 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "Managed Postgres",
+      "folder": "Codesphere",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "cs-pg-down",
+          "title": "Postgres down",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT Attributes['managed-services.codesphere.com/id'] AS service,\n  if(max(TimeUnix) < now() - INTERVAL 10 MINUTE, 0, argMax(Value, TimeUnix)) AS up\nFROM otel_metrics_gauge\nWHERE TimeUnix > now() - INTERVAL 1 HOUR AND MetricName = 'cnpg_collector_up' AND service != ''\nGROUP BY service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "lt",
+                      "params": [
+                        1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Postgres {{ $labels.service }} is down",
+            "description": "The CloudNativePG exporter of managed service {{ $labels.service }} can't reach Postgres, or has sent no metrics for 10 minutes."
+          }
+        },
+        {
+          "uid": "cs-pg-connections",
+          "title": "Postgres connections near the limit",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT conn.service AS service, conn.v / maxconn.v AS usage\nFROM (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 5 MINUTE AND MetricName = 'cnpg_backends_total'\n  GROUP BY service, series) GROUP BY service) AS conn\nJOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 5 MINUTE AND MetricName = 'cnpg_pg_settings_setting' AND Attributes['name'] = 'max_connections'\n  GROUP BY service, series) GROUP BY service) AS maxconn USING service\nWHERE maxconn.v > 0"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.8
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Postgres {{ $labels.service }} uses {{ humanizePercentage $values.A.Value }} of its connections",
+            "description": "New connections are refused once max_connections is reached."
+          }
+        },
+        {
+          "uid": "cs-pg-replication-lag",
+          "title": "Postgres replication lag",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT service, max(v) AS lag FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 5 MINUTE AND MetricName = 'cnpg_pg_replication_lag'\n  GROUP BY service, series) GROUP BY service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        60
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Postgres {{ $labels.service }} replicas lag {{ humanizeDuration $values.A.Value }}",
+            "description": "A replica is more than a minute behind the primary; reads from it are stale and a failover may lose data."
+          }
+        },
+        {
+          "uid": "cs-pg-wal-archiving",
+          "title": "Postgres WAL archiving fails",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT Attributes['managed-services.codesphere.com/id'] AS service, max(Value) - min(Value) AS failures\nFROM otel_metrics_sum\nWHERE TimeUnix > now() - INTERVAL 15 MINUTE AND MetricName = 'cnpg_pg_stat_archiver_failed_count' AND service != ''\nGROUP BY service, toString(Attributes)"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "Postgres {{ $labels.service }} fails to archive WAL",
+            "description": "WAL that isn't archived can't be restored, and piles up on the volume until it is full."
+          }
+        },
+        {
+          "uid": "cs-pg-backup",
+          "title": "Postgres backup failed",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT ok.service AS service, toUInt8(failed.v > ok.v) AS failing\nFROM (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_last_available_backup_timestamp'\n  GROUP BY service, series) GROUP BY service) AS ok\nJOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_last_failed_backup_timestamp'\n  GROUP BY service, series) GROUP BY service) AS failed USING service\nWHERE failed.v > 0"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "The last backup of Postgres {{ $labels.service }} failed",
+            "description": "The latest backup attempt failed after the last successful one."
+          }
+        },
+        {
+          "uid": "cs-pg-xid-age",
+          "title": "Postgres transaction ID wraparound",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 3600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT service, max(v) AS age FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_database_xid_age'\n  GROUP BY service, series) GROUP BY service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        1000000000
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "30m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Postgres {{ $labels.service }} is at transaction ID age {{ $values.A.Value }}",
+            "description": "Postgres stops accepting writes near 2 billion; autovacuum has to freeze old rows before then."
+          }
+        }
+      ]
+    },
+    {
+      "orgId": 1,
+      "name": "Workspace traces",
+      "folder": "Codesphere",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "cs-trace-errors",
+          "title": "Service error rate",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT ServiceName AS service, countIf(StatusCode = 'Error') / count() AS error_ratio\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 10 MINUTE AND SpanKind IN ('Server', 'Consumer')\nGROUP BY service\nHAVING count() >= 50"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.05
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.service }} fails {{ humanizePercentage $values.A.Value }} of its requests",
+            "description": "More than 5% of the server and consumer spans of {{ $labels.service }} ended with an error in the last 10 minutes (at least 50 spans)."
+          }
+        }
+      ]
+    }
+  ]
+}

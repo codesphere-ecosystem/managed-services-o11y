@@ -1,0 +1,219 @@
+{
+  "uid": "codesphere-workspaces",
+  "title": "Workspaces",
+  "description": "stdout and stderr of the workspaces' pipeline stages, as the workspace agent sends them.",
+  "tags": [
+    "codesphere"
+  ],
+  "schemaVersion": 39,
+  "editable": true,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "workspace",
+        "label": "Workspace",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT LogAttributes['workspaceId'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] != ''",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT LogAttributes['workspaceId'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] != ''"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": null,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "server",
+        "label": "Server",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT LogAttributes['server'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote})",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT LogAttributes['server'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote})"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": null,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "",
+            "value": ""
+          }
+        ],
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Log lines by server",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, concat(LogAttributes['workspaceId'], ' / ', LogAttributes['server']) AS server, count() / $__interval_s AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['server'] IN (${server:singlequote})\nGROUP BY time, server ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "description": "Lines per second the workspaces' run stages write."
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "stderr lines by server",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, concat(LogAttributes['workspaceId'], ' / ', LogAttributes['server']) AS server, count() / $__interval_s AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['server'] IN (${server:singlequote}) AND LogAttributes['source'] = 'stderr'\nGROUP BY time, server ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 15,
+      "type": "table",
+      "title": "Busiest servers",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 8
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT LogAttributes['workspaceId'] AS Workspace, LogAttributes['server'] AS Server, count() AS Lines, countIf(LogAttributes['source'] = 'stderr') AS `stderr lines`, max(Timestamp) AS `Last line`\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['server'] IN (${server:singlequote})\nGROUP BY Workspace, Server ORDER BY Lines DESC LIMIT 50"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 16,
+      "type": "logs",
+      "title": "Logs",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 24,
+        "h": 14
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 2,
+          "rawSql": "SELECT Timestamp AS timestamp, Body AS body, if(LogAttributes['source'] = 'stderr', 'error', 'info') AS level,\n  LogAttributes['workspaceId'] AS workspace, LogAttributes['server'] AS server, LogAttributes['replicaId'] AS replica, LogAttributes['stage'] AS stage\nFROM otel_logs\nWHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['server'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY Timestamp DESC LIMIT 1000"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      }
+    }
+  ]
+}
