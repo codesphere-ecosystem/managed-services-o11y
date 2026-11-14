@@ -42,7 +42,7 @@ Inside the landscape, use `otel-collector:4317` or `:4318` with the same header.
 
 - **Managed services**: CloudNativePG metrics and managed-service pod logs that the resource group's Alloy sends, keyed by `managed-services.codesphere.com/id`.
 - **Workspaces**: pipeline stdout/stderr that workspace agents send (`workspaceId`, `server`, `replicaId`, `stage` log attributes).
-- **Alerts**: Postgres down, connections over 80%, replication lag over 1 min, WAL archiving or backup failing, transaction ID age over 1 billion, and over 5% failed server spans per traced service. No contact point is provisioned; add one in Grafana to get notified.
+- **Alerts**: Postgres down, connections over 80%, replication lag over 1 min, WAL archiving failing, transaction ID age over 1 billion, and over 5% failed server spans per traced service. No backup alert: CNPG's backup metrics don't track plugin backups. No contact point is provisioned; add one in Grafana to get notified.
 
 ## Not verified on a cluster
 
