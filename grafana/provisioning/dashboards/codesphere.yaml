@@ -7,3 +7,9 @@ providers:
     allowUiUpdates: false
     options:
       path: /etc/grafana/provisioning/dashboards/codesphere
+  - name: managed-services
+    folder: Managed services
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/provisioning/dashboards/managed-services

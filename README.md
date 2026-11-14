@@ -20,7 +20,7 @@ app ──OTLP/HTTP──▶ gateway /otlp ──▶ otel-collector ──native
 
 1. Create a workspace from this repo.
 2. Sync the landscape and fill the vault secrets: `clickhousePassword` (8–32 alphanumeric), `otlpToken`, `grafanaAdminPassword`, `grafanaDbPassword`, `grafanaDbSuperuserPassword`.
-3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours and the alert rules in **Codesphere**.
+3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** and **Codesphere**, the alert rules in **Codesphere**.
 
 Plans `21` (containers) and `8` (router) in [`ci.yml`](ci.yml) are placeholders; pick plans that exist on the target cluster.
 
@@ -38,11 +38,12 @@ Inside the landscape, use `otel-collector:4317` or `:4318` with the same header.
 
 ## Dashboards and alerts
 
-[`grafana/provisioning/dashboards/codesphere/`](grafana/provisioning/dashboards/codesphere/) and [`grafana/provisioning/alerting/rules.json`](grafana/provisioning/alerting/rules.json), read-only in Grafana:
+Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/):
 
-- **Managed services**: CloudNativePG metrics and managed-service pod logs that the resource group's Alloy sends, keyed by `managed-services.codesphere.com/id`.
-- **Workspaces**: pipeline stdout/stderr that workspace agents send (`workspaceId`, `server`, `replicaId`, `stage` log attributes).
-- **Alerts**: Postgres down, connections over 80%, replication lag over 1 min, WAL archiving failing, transaction ID age over 1 billion, and over 5% failed server spans per traced service. No backup alert: CNPG's backup metrics don't track plugin backups. No contact point is provisioned; add one in Grafana to get notified.
+- **Managed services / Postgres**: Postgres, FerretDB and Babelfish services, from the CloudNativePG metrics the resource group's Alloy sends, keyed by `managed-services.codesphere.com/id`. Other providers get a dashboard once they publish a PodMonitor in `rg-<team>`.
+- **Managed services / Service logs**: pod logs of any provider, for pods with the log-collection label.
+- **Codesphere / Workspaces**: pipeline stdout/stderr that workspace agents send (`workspaceId`, `server`, `replicaId`, `stage` log attributes).
+- **Alerts** ([`rules.json`](grafana/provisioning/alerting/rules.json)): Postgres down, connections over 80%, replication lag over 1 min, WAL archiving failing, transaction ID age over 1 billion, and over 5% failed server spans per traced service. No backup alert: CNPG's backup metrics don't track plugin backups. No contact point is provisioned; add one in Grafana to get notified.
 
 ## Not verified on a cluster
 

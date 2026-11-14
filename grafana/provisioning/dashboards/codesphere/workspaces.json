@@ -80,7 +80,7 @@
   },
   "panels": [
     {
-      "id": 13,
+      "id": 21,
       "type": "timeseries",
       "title": "Log lines by server",
       "datasource": {
@@ -114,7 +114,7 @@
       "description": "Lines per second the workspaces' run stages write."
     },
     {
-      "id": 14,
+      "id": 22,
       "type": "timeseries",
       "title": "stderr lines by server",
       "datasource": {
@@ -147,7 +147,7 @@
       }
     },
     {
-      "id": 15,
+      "id": 23,
       "type": "table",
       "title": "Busiest servers",
       "datasource": {
@@ -178,7 +178,7 @@
       }
     },
     {
-      "id": 16,
+      "id": 24,
       "type": "logs",
       "title": "Logs",
       "datasource": {
