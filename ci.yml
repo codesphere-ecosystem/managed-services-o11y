@@ -19,16 +19,14 @@ run:
           stripPath: false
           service: grafana
           port: 3000
-
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
-    command:
-      - --config=/etc/otelcol-contrib/config.yaml
-    plan: 21
-    replicas: 1
     healthEndpoint: http://127.0.0.1:13133/
+    plan: 201
+    replicas: 1
     network:
-      ports: [4317, 4318]
+      ports:
+        - 4317
+        - 4318
     env:
       OTLP_TOKEN: ${{ vault.otlpToken }}
       CLICKHOUSE_HOST: ms-clickhouse-v0-${{ team.id }}-landscape-${{ workspace.id }}-clickhouse.rg-${{ team.id }}
@@ -36,22 +34,22 @@ run:
       CLICKHOUSE_DATABASE: app
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
-      # ReplicatedMergeTree with a 3-instance ClickHouse plan.
       CLICKHOUSE_TABLE_ENGINE: MergeTree
       TELEMETRY_TTL: 168h
     volumeMounts:
       - name: _workspace
         mountPath: /etc/otelcol-contrib/config.yaml
         workspacePath: otel/config.yaml
-
+    image: otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
   grafana:
-    image: grafana/grafana:13.2.6@sha256:b21409d7951ddcfd63a4b49083e4ef2cc35bc1437d071813bf82bfb238b00bca
-    plan: 21
-    replicas: 1
     healthEndpoint: http://127.0.0.1:3000/api/health
+    plan: 201
+    replicas: 1
     network:
-      ports: [3000]
-    runAsUser: 472
+      ports:
+        - 3000
     env:
       GF_SERVER_ROOT_URL: https://${{ workspace.devDomain }}/
       GF_SECURITY_ADMIN_USER: admin
@@ -67,11 +65,12 @@ run:
       CLICKHOUSE_DATABASE: app
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
+    runAsUser: 472
     volumeMounts:
       - name: _workspace
         mountPath: /etc/grafana/provisioning
         workspacePath: grafana/provisioning
-
+    image: grafana/grafana:13.2.6@sha256:b21409d7951ddcfd63a4b49083e4ef2cc35bc1437d071813bf82bfb238b00bca
   clickhouse:
     provider:
       name: clickhouse
@@ -83,11 +82,10 @@ run:
         cpu: 10
         memory: 2048
         instances: 1
-    version: 1.0.0
     config: {}
     secrets:
       password: ${{ vault.clickhousePassword }}
-
+    version: 1.0.0
   grafana-db:
     provider:
       name: postgres
