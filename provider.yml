@@ -1,0 +1,54 @@
+name: managed-services-o11y
+schemaVersion: v0
+backend:
+  landscape:
+    gitUrl: https://github.com/codesphere-cloud/managed-services-o11y
+author: Team o11y
+category: Other
+description: A Codesphere landscape that ingests OpenTelemetry logs, traces and
+  metrics, stores them in a managed ClickHouse, and shows them in Grafana.
+displayName: Dirty o11y
+iconUrl: https://emoji.slack-edge.com/T01DXUTF5GV/dirty-o11y/0fef1341aa0bc615.png
+configSchema:
+  type: object
+  properties: {}
+detailsSchema:
+  type: object
+  properties:
+    hostname:
+      type: string
+      format: uri
+  additionalProperties: false
+secretsSchema:
+  type: object
+  properties:
+    otlpToken:
+      type: string
+      description: "Token to protect otlp ingestion "
+    clickhousePassword:
+      type: string
+      description: ""
+    grafanaAdminPassword:
+      type: string
+      description: ""
+    grafanaDbPassword:
+      type: string
+      description: ""
+    grafanaDbSuperuserPassword:
+      type: string
+      description: ""
+  required:
+    - otlpToken
+    - clickhousePassword
+    - grafanaAdminPassword
+    - grafanaDbPassword
+    - grafanaDbSuperuserPassword
+  additionalProperties: false
+resourceParameters: {}
+plans: []
+versions:
+  0.0.1:
+    ciProfile: __cs_default__
+    gitRef: main
+    appVersion: unstable
+    description: ""
