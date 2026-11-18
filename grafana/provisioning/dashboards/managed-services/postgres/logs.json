@@ -1,0 +1,455 @@
+{
+  "uid": "ms-postgres-logs",
+  "title": "Postgres logs and events",
+  "description": "Pod logs of managed Postgres, FerretDB and Babelfish services and the marketplace events about them (backups, reconciliation, autoscaling).",
+  "tags": [
+    "managed-services",
+    "managed-service-postgres"
+  ],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT service FROM (\n  SELECT Attributes['managed-services.codesphere.com/id'] AS service FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  UNION ALL\n  SELECT LogAttributes['targetId'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish')\n  UNION ALL\n  SELECT LogAttributes['managed-services.codesphere.com/id'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['container'] = 'postgres'\n) WHERE service != '' ORDER BY service",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT service FROM (\n  SELECT Attributes['managed-services.codesphere.com/id'] AS service FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  UNION ALL\n  SELECT LogAttributes['targetId'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish')\n  UNION ALL\n  SELECT LogAttributes['managed-services.codesphere.com/id'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['container'] = 'postgres'\n) WHERE service != '' ORDER BY service"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "pod",
+        "label": "Pod",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT LogAttributes['pod'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) ORDER BY 1",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT LogAttributes['pod'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) ORDER BY 1"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "managed-services"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "title": "Dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Events",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Events",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "fillOpacity": 80,
+            "drawStyle": "bars"
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.level}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "info"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') AS level, count() AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] IN (${service:singlequote})\nGROUP BY time, level ORDER BY time"
+        }
+      ],
+      "description": "Marketplace events about the selected services, by severity.",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 8,
+        "h": 8
+      },
+      "id": 2
+    },
+    {
+      "type": "table",
+      "title": "Event log",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "error": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "warning": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "info": {
+                        "color": "blue",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT Timestamp AS Time, multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') AS Severity, if(EventName != '', EventName, LogAttributes['event.name']) AS Event, LogAttributes['targetId'] AS Service, LogAttributes['name'] AS Name,\n  Body AS Message, LogAttributes['creator'] AS Creator\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] IN (${service:singlequote})\nORDER BY Timestamp DESC LIMIT 500"
+        }
+      ],
+      "description": "Backups, reconciliation and autoscaling, as the marketplace records them.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 8,
+        "y": 1,
+        "w": 16,
+        "h": 8
+      },
+      "id": 3
+    },
+    {
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Log lines by level",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "fillOpacity": 30
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.level}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, multiIf(\n    JSONExtractString(Body, 'record', 'error_severity') IN ('ERROR', 'FATAL', 'PANIC'), 'error',\n    JSONExtractString(Body, 'record', 'error_severity') = 'WARNING', 'warning',\n    JSONExtractString(Body, 'record', 'error_severity') != '', 'info',\n    JSONExtractString(Body, 'level') IN ('error', 'fatal', 'panic'), 'error',\n    JSONExtractString(Body, 'level') IN ('warn', 'warning'), 'warning',\n    JSONExtractString(Body, 'level') = 'debug', 'debug',\n    multiSearchAnyCaseInsensitive(Body, ['error', 'fatal', 'panic']), 'error',\n    'info') AS level, count() / $__interval_s AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) AND LogAttributes['pod'] IN (${pod:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nGROUP BY time, level ORDER BY time"
+        }
+      ],
+      "description": "Lines per second. Postgres messages are classified by their error_severity, operator lines by their level.",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "id": 5
+    },
+    {
+      "type": "table",
+      "title": "Top Postgres errors",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT JSONExtractString(Body, 'record', 'error_severity') AS Severity, JSONExtractString(Body, 'record', 'sql_state_code') AS `SQL state`, JSONExtractString(Body, 'record', 'message') AS Message,\n  count() AS Count, uniqExact(LogAttributes['managed-services.codesphere.com/id']) AS Services, max(Timestamp) AS `Last seen`\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) AND LogAttributes['pod'] IN (${pod:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search) AND JSONExtractString(Body, 'record', 'error_severity') IN ('ERROR', 'FATAL', 'PANIC')\nGROUP BY Severity, `SQL state`, Message ORDER BY Count DESC LIMIT 50"
+        }
+      ],
+      "description": "ERROR, FATAL and PANIC messages Postgres logged, grouped by message.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "id": 6
+    },
+    {
+      "type": "logs",
+      "title": "Logs",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 2,
+          "rawSql": "SELECT Timestamp AS timestamp, multiIf(\n    JSONExtractString(Body, 'record', 'message') != '', concat(JSONExtractString(Body, 'record', 'error_severity'), ': ', JSONExtractString(Body, 'record', 'message')),\n    JSONExtractString(Body, 'msg') != '', JSONExtractString(Body, 'msg'),\n    Body) AS body, multiIf(\n    JSONExtractString(Body, 'record', 'error_severity') IN ('ERROR', 'FATAL', 'PANIC'), 'error',\n    JSONExtractString(Body, 'record', 'error_severity') = 'WARNING', 'warning',\n    JSONExtractString(Body, 'record', 'error_severity') != '', 'info',\n    JSONExtractString(Body, 'level') IN ('error', 'fatal', 'panic'), 'error',\n    JSONExtractString(Body, 'level') IN ('warn', 'warning'), 'warning',\n    JSONExtractString(Body, 'level') = 'debug', 'debug',\n    multiSearchAnyCaseInsensitive(Body, ['error', 'fatal', 'panic']), 'error',\n    'info') AS level,\n  LogAttributes['managed-services.codesphere.com/id'] AS service, LogAttributes['pod'] AS pod, LogAttributes['container'] AS container,\n  JSONExtractString(Body, 'logger') AS logger, JSONExtractString(Body, 'record', 'user_name') AS user, JSONExtractString(Body, 'record', 'database_name') AS database\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) AND LogAttributes['pod'] IN (${pod:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY Timestamp DESC LIMIT 1000"
+        }
+      ],
+      "description": "Logs of the service pods (Postgres, the CNPG instance manager and the backup sidecar). Open a line for the raw JSON.",
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none",
+        "prettifyLogMessage": false
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 18
+      },
+      "id": 7
+    }
+  ]
+}

@@ -1,0 +1,391 @@
+{
+  "uid": "ws-overview",
+  "title": "Workspaces overview",
+  "description": "Requests through the workspace routers and pipeline logs of the workspace agents, per workspace.",
+  "tags": [
+    "workspaces"
+  ],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "workspace",
+        "label": "Workspace",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT workspace FROM (\n  SELECT LogAttributes['workspaceId'] AS workspace FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] != ''\n  UNION ALL\n  SELECT substring(ServiceName, 4) FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-')\n) ORDER BY toUInt64OrZero(workspace)",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT workspace FROM (\n  SELECT LogAttributes['workspaceId'] AS workspace FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] != ''\n  UNION ALL\n  SELECT substring(ServiceName, 4) FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-')\n) ORDER BY toUInt64OrZero(workspace)"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "workspaces"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "title": "Dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Workspaces",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "table",
+      "title": "Workspaces",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.01
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.05
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95 latency"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Workspace"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Requests of workspace ${__value.raw}",
+                    "url": "/d/ws-requests?var-workspace=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Log lines"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Logs of workspace ${__value.raw}",
+                    "url": "/d/ws-logs?var-workspace=${__data.fields.Workspace}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT workspace AS Workspace, req.requests AS Requests, req.errors / nullIf(req.requests, 0) AS `5xx`, req.p95 AS `p95 latency`,\n  lg.lines AS `Log lines`, lg.stderr AS `stderr lines`, greatest(req.last, lg.last) AS `Last activity`\nFROM (\n  SELECT substring(ServiceName, 4) AS workspace, count() AS requests, countIf(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 500) AS errors,\n    quantile(0.95)(Duration) / 1e9 AS p95, max(Timestamp) AS last\n  FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) GROUP BY workspace\n) AS req\nFULL OUTER JOIN (\n  SELECT LogAttributes['workspaceId'] AS workspace, count() AS lines, countIf(LogAttributes['source'] = 'stderr') AS stderr, max(Timestamp) AS last\n  FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) GROUP BY workspace\n) AS lg USING workspace\nORDER BY Requests DESC, `Log lines` DESC\nSETTINGS join_use_nulls = 1"
+        }
+      ],
+      "description": "Totals over the time range.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 9
+      },
+      "id": 2
+    },
+    {
+      "type": "row",
+      "title": "Requests",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "displayName": "${__field.labels.workspace}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, substring(ServiceName, 4) AS workspace, count() / $__interval_s AS value\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) GROUP BY time, workspace ORDER BY time"
+        }
+      ],
+      "description": "Requests per second through the workspace routers. Only workspaces with request tracing turned on send them.",
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx responses",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "displayName": "${__field.labels.workspace}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, substring(ServiceName, 4) AS workspace, countIf(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 500) / count() AS value\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) GROUP BY time, workspace ORDER BY time"
+        }
+      ],
+      "description": "Share of requests answered with a 5xx status.",
+      "gridPos": {
+        "x": 8,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 latency",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "displayName": "${__field.labels.workspace}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, substring(ServiceName, 4) AS workspace, quantile(0.95)(Duration) / 1e9 AS value\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) GROUP BY time, workspace ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 16,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "id": 6
+    },
+    {
+      "type": "row",
+      "title": "Logs",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Log lines",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "displayName": "${__field.labels.workspace}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, LogAttributes['workspaceId'] AS workspace, count() / $__interval_s AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) GROUP BY time, workspace ORDER BY time"
+        }
+      ],
+      "description": "Pipeline output lines per second the workspace agents send.",
+      "gridPos": {
+        "x": 0,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "id": 8
+    },
+    {
+      "type": "timeseries",
+      "title": "stderr lines",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "displayName": "${__field.labels.workspace}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, LogAttributes['workspaceId'] AS workspace, count() / $__interval_s AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['source'] = 'stderr' GROUP BY time, workspace ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 20,
+        "w": 12,
+        "h": 8
+      },
+      "id": 9
+    }
+  ]
+}

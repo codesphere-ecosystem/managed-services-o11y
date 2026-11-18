@@ -20,7 +20,8 @@ app ──OTLP/HTTP──▶ gateway /otlp ──▶ otel-collector ──native
 
 1. Create a workspace from this repo.
 2. Sync the landscape and fill the vault secrets: `clickhousePassword` (8–32 alphanumeric), `otlpToken`, `grafanaAdminPassword`, `grafanaDbPassword`, `grafanaDbSuperuserPassword`.
-3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** and **Codesphere**, the alert rules in **Codesphere**.
+3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** (all providers), one folder per provider (**Managed services · Postgres**) and **Workspaces**.
+4. Point the team's OTLP export (team settings) at `https://<dev domain>/otlp` with the `otlpToken`, so the team collector forwards the resource group's telemetry here.
 
 Plans `21` (containers) and `8` (router) in [`ci.yml`](ci.yml) are placeholders; pick plans that exist on the target cluster.
 
@@ -36,17 +37,46 @@ OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <otlpToken>
 
 Inside the landscape, use `otel-collector:4317` or `:4318` with the same header.
 
+## What the resource group sends
+
+Everything reaches the landscape through the team collector (`team-collector-<team>` in the o11y namespace) and its OTLP export. Status as of 2026-11-18:
+
+| Source | Signal | Identified by | Status |
+|---|---|---|---|
+| Workspace agent | pipeline stdout/stderr | log attributes `workspaceId`, `server`, `replicaId`, `stage`, `stepNumber`, `execId`, `source` (`stdout`/`stderr`) | live |
+| Workspace router (nginx) | request spans, if tracing is on for the workspace | `ServiceName` `ws-<workspaceId>`, span attributes `server.address`, `url.path`, `http.status_code` | live |
+| Marketplace (via its Envoy sidecar) | managed-service events: backups, reconciliation, autoscaling, and a change event whenever health, backups or a resource's utilization changes state | `ServiceName` `marketplace`, `EventName`, log attributes `teamId`, `targetId` (service ID), `name`, `provider`, `creator` | live |
+| Marketplace | `codesphere.managed_service.utilization` and `.ratio` gauges | attributes `targetId`, `name`, `provider`, `resource` | codesphere-cloud/codesphere-monorepo#23228 |
+| rg Alloy in `rg-<team>` | metrics of PodMonitors/ServiceMonitors (CNPG for Postgres), logs of pods labelled `codesphere.com/collect-logs-to-rg-alloy=true` | attribute `managed-services.codesphere.com/id` copied from the pod label; logs also carry `pod`, `container`, `namespace` | behind `rg-o11y-dev`, and only deployed with the OpenSearch platform; for an OTLP export needs codesphere-cloud/codesphere-monorepo#23221 (Alloy in export-only mode) and, for metrics, codesphere-cloud/codesphere-monorepo#23103 |
+| Team collector kubeletstats | CPU, memory and volume usage of `rg-<team>` pods | resource attributes `k8s.pod.name`, `k8s.persistentvolumeclaim.name` | codesphere-cloud/codesphere-monorepo#23221 (`rg-o11y-dev`) |
+
+Until those land, the Postgres dashboards only show the marketplace events, and the Postgres alerts have no data (they stay OK); the **Managed services** alerts work already. CNPG metrics only carry the service ID; names come from the marketplace events, pod and volume usage are joined to services through the `pod` label of the CNPG metrics.
+
 ## Dashboards and alerts
 
-Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/):
+Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/): one folder for what applies to every managed service, one per provider so its dashboards and alert rules stay together. Grafana's file provisioning can't nest folders, hence the `Managed services · ` prefix.
 
-- **Managed services / Postgres**: Postgres, FerretDB and Babelfish services, from the CloudNativePG metrics the resource group's Alloy sends, keyed by `managed-services.codesphere.com/id`. Other providers get a dashboard once they publish a PodMonitor in `rg-<team>`.
-- **Managed services / Service logs**: pod logs of any provider, for pods with the log-collection label.
-- **Codesphere / Workspaces**: pipeline stdout/stderr that workspace agents send (`workspaceId`, `server`, `replicaId`, `stage` log attributes).
-- **Alerts** ([`rules.json`](grafana/provisioning/alerting/rules.json)): Postgres down, connections over 80%, replication lag over 1 min, WAL archiving failing, transaction ID age over 1 billion, and over 5% failed server spans per traced service. No backup alert: CNPG's backup metrics don't track plugin backups. No contact point is provisioned; add one in Grafana to get notified.
+- **Managed services** (every provider, from the marketplace)
+  - *Managed services events*: current health, backups and utilization state per service, the event log and the reported utilization, filterable by provider, service, event and severity.
+  - Alert rules ([`managed-services.json`](grafana/provisioning/alerting/managed-services.json)): unhealthy, degraded or unknown health, backups overdue, a resource (storage, CPU, …) close to or at its plan value, and error events such as a failed backup or a provider that doesn't answer.
+    The marketplace only logs health, backups and utilization when they change, so these rules look at the latest change of the last 7 days: they resolve with the next change, and a service deleted in a bad state keeps firing until its events expire.
+- **Managed services · Postgres** (Postgres, FerretDB and Babelfish)
+  - *Postgres overview*: status, activity, storage and replication from CNPG, CPU/memory/disk from kubeletstats, utilization the provider reports.
+  - *Postgres logs and events*: marketplace events and pod logs, with Postgres messages parsed out of CNPG's JSON lines.
+  - Alert rules ([`managed-services-postgres.json`](grafana/provisioning/alerting/managed-services-postgres.json)), from CNPG and kubeletstats: down, connections over 80%, replication lag over 1 min, WAL archiving failing, transaction ID age over 1 billion, a volume over 90% full, a transaction open for over an hour.
+- **Workspaces**
+  - *Workspaces overview*: requests, 5xx share, latency and log volume per workspace.
+  - *Workspace requests*: router spans by server, status class and path, with the slowest and failed requests.
+  - *Workspace logs*: pipeline output by server and stage.
+  - Alert rule ([`workspaces.json`](grafana/provisioning/alerting/workspaces.json)): over 5% failed server spans per traced service.
+
+A new provider gets a `dashboards/managed-services/<provider>/` directory, a provider entry in [`folders.yaml`](grafana/provisioning/dashboards/folders.yaml) with folder `Managed services · <Provider>`, and an `alerting/managed-services-<provider>.json` with the same folder title.
+
+No contact point is provisioned; add one in Grafana to get notified. Grafana keeps the **Codesphere** folder of earlier versions after an upgrade, empty; delete it by hand.
 
 ## Not verified on a cluster
 
 - Managed-service hostnames (`ms-<provider>-<schemaVersion>-<team>-landscape-<workspace>-<name>`).
 - `ReplicatedMergeTree` against 3 instances.
 - Grafana as UID 472, plugin install from grafana.com at startup, Postgres TLS.
+- The dashboards and alerts were checked against a local ClickHouse, the collector above and Grafana 13.2.6 with synthetic telemetry shaped like each source; the names of the kubeletstats and utilization metrics follow the open PRs in the table.

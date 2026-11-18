@@ -1,0 +1,724 @@
+{
+  "uid": "ms-events",
+  "title": "Managed services events",
+  "description": "State and event log of every managed service in the resource group, across providers, as the marketplace records them: health, backups and utilization changes, reconciliation, backups, autoscaling.",
+  "tags": [
+    "managed-services"
+  ],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "provider",
+        "label": "Provider",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT provider FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider != '' ORDER BY provider",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT provider FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider != '' ORDER BY provider"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT service FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider IN (${provider:singlequote}) OR provider = '' ORDER BY name, service",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT service FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider IN (${provider:singlequote}) OR provider = '' ORDER BY name, service"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "event",
+        "label": "Event",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT if(EventName != '', EventName, LogAttributes['event.name']) FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['targetId'] IN (${service:singlequote}) ORDER BY 1",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT if(EventName != '', EventName, LogAttributes['event.name']) FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['targetId'] IN (${service:singlequote}) ORDER BY 1"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "severity",
+        "label": "Severity",
+        "type": "custom",
+        "query": "error,warning,info",
+        "multi": true,
+        "includeAll": true,
+        "current": {
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
+        },
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "managed-services"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "title": "Dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Current state",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "table",
+      "title": "Services",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Health"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "upToDate": {
+                        "color": "green",
+                        "index": 1
+                      },
+                      "normal": {
+                        "color": "green",
+                        "index": 2
+                      },
+                      "degraded": {
+                        "color": "orange",
+                        "index": 3
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 4
+                      },
+                      "overdue": {
+                        "color": "orange",
+                        "index": 5
+                      },
+                      "closeToLimit": {
+                        "color": "orange",
+                        "index": 6
+                      },
+                      "unhealthy": {
+                        "color": "red",
+                        "index": 7
+                      },
+                      "atLimit": {
+                        "color": "red",
+                        "index": 8
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "-",
+                        "color": "transparent",
+                        "index": 9
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "empty",
+                      "result": {
+                        "text": "-",
+                        "color": "transparent",
+                        "index": 10
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Backups"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "healthy": {
+                        "color": "green",
+                        "index": 0
+                      },
+                      "upToDate": {
+                        "color": "green",
+                        "index": 1
+                      },
+                      "normal": {
+                        "color": "green",
+                        "index": 2
+                      },
+                      "degraded": {
+                        "color": "orange",
+                        "index": 3
+                      },
+                      "unknown": {
+                        "color": "text",
+                        "index": 4
+                      },
+                      "overdue": {
+                        "color": "orange",
+                        "index": 5
+                      },
+                      "closeToLimit": {
+                        "color": "orange",
+                        "index": 6
+                      },
+                      "unhealthy": {
+                        "color": "red",
+                        "index": 7
+                      },
+                      "atLimit": {
+                        "color": "red",
+                        "index": 8
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "null+nan",
+                      "result": {
+                        "text": "-",
+                        "color": "transparent",
+                        "index": 9
+                      }
+                    }
+                  },
+                  {
+                    "type": "special",
+                    "options": {
+                      "match": "empty",
+                      "result": {
+                        "text": "-",
+                        "color": "transparent",
+                        "index": 10
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Utilization not normal"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Events of ${__value.raw}",
+                    "url": "/d/ms-events?var-service=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT info.service AS Service, info.name AS Name, info.provider AS Provider,\n  health.state AS Health, health.message AS `Health message`, backups.state AS Backups, util.v AS `Utilization not normal`,\n  errors.n AS `Error events`, errors.last AS `Last event`\nFROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info\nLEFT JOIN (SELECT LogAttributes['targetId'] AS service, argMax(multiIf(Body = 'Provider reports the service as healthy', 'healthy',\n    Body = 'Provider reports the service as degraded', 'degraded',\n    Body = 'Provider reports the service as unhealthy', 'unhealthy',\n    Body = 'Provider reports the service health as unknown', 'unknown', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(Body = 'Provider reports the service as healthy', 'healthy',\n    Body = 'Provider reports the service as degraded', 'degraded',\n    Body = 'Provider reports the service as unhealthy', 'unhealthy',\n    Body = 'Provider reports the service health as unknown', 'unknown', '') != ''\n  GROUP BY service) AS health USING service\nLEFT JOIN (SELECT LogAttributes['targetId'] AS service, argMax(multiIf(Body = 'Backups are up to date', 'upToDate', Body = 'Backups are overdue', 'overdue', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(Body = 'Backups are up to date', 'upToDate', Body = 'Backups are overdue', 'overdue', '') != ''\n  GROUP BY service) AS backups USING service\nLEFT JOIN (SELECT service, arrayStringConcat(groupArray(concat(resource, ': ', state, if(message != '', concat(' (', message, ')'), ''))), ', ') AS v\n  FROM (SELECT LogAttributes['targetId'] AS service, extract(Body, '^Utilization of (.+) is (?:normal|close to the plan value|at the plan value)$') AS resource, argMax(multiIf(endsWith(Body, ' is normal'), 'normal', endsWith(Body, ' is close to the plan value'), 'closeToLimit', endsWith(Body, ' is at the plan value'), 'atLimit', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(endsWith(Body, ' is normal'), 'normal', endsWith(Body, ' is close to the plan value'), 'closeToLimit', endsWith(Body, ' is at the plan value'), 'atLimit', '') != ''\n  GROUP BY service, extract(Body, '^Utilization of (.+) is (?:normal|close to the plan value|at the plan value)$') AS resource) WHERE state != 'normal' GROUP BY service) AS util USING service\nLEFT JOIN (SELECT LogAttributes['targetId'] AS service, countIf(SeverityNumber >= 17) AS n, max(Timestamp) AS last\n  FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' GROUP BY service) AS errors USING service\nWHERE info.service IN (${service:singlequote})\nORDER BY Health = 'unhealthy' DESC, Health = 'degraded' DESC, `Error events` DESC, Name\nSETTINGS join_use_nulls = 1"
+        }
+      ],
+      "description": "Health and backups are the latest state the provider reported, which the marketplace logs when it changes; empty when it hasn't changed in the last 7 days. Error events count the time range.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 9
+      },
+      "id": 2
+    },
+    {
+      "type": "row",
+      "title": "Events",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Events by severity",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "fillOpacity": 80,
+            "drawStyle": "bars"
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.level}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "error"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "warning"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "info"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') AS level, count() AS value\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['targetId'] IN (${service:singlequote})\n  AND if(EventName != '', EventName, LogAttributes['event.name']) IN (${event:singlequote}) AND multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') IN (${severity:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nGROUP BY time, level ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Error events by provider",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "fillOpacity": 80,
+            "drawStyle": "bars"
+          },
+          "unit": "short",
+          "displayName": "${__field.labels.provider}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, if(info.provider = '', 'unknown', info.provider) AS provider, count() AS value\nFROM otel_logs AS l LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info ON info.service = l.LogAttributes['targetId']\nWHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['targetId'] IN (${service:singlequote})\n  AND if(EventName != '', EventName, LogAttributes['event.name']) IN (${event:singlequote}) AND multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') IN (${severity:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search) AND SeverityNumber >= 17\nGROUP BY time, provider ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 8,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "id": 5
+    },
+    {
+      "type": "table",
+      "title": "Events by name",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT if(EventName != '', EventName, LogAttributes['event.name']) AS Event, countIf(SeverityNumber >= 17) AS Errors, countIf(SeverityNumber >= 13 AND SeverityNumber < 17) AS Warnings,\n  count() AS Total, uniqExact(LogAttributes['targetId']) AS Services, max(Timestamp) AS Last\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['targetId'] IN (${service:singlequote})\n  AND if(EventName != '', EventName, LogAttributes['event.name']) IN (${event:singlequote}) AND multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') IN (${severity:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nGROUP BY Event ORDER BY Errors DESC, Total DESC"
+        }
+      ],
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 11,
+        "w": 8,
+        "h": 8
+      },
+      "id": 6
+    },
+    {
+      "type": "table",
+      "title": "Event log",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Severity"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "error": {
+                        "color": "red",
+                        "index": 0
+                      },
+                      "warning": {
+                        "color": "orange",
+                        "index": 1
+                      },
+                      "info": {
+                        "color": "blue",
+                        "index": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              },
+              {
+                "id": "custom.width",
+                "value": 90
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Time"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 180
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT l.Timestamp AS Time, multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') AS Severity, info.provider AS Provider, info.name AS Name, LogAttributes['targetId'] AS Service,\n  if(EventName != '', EventName, LogAttributes['event.name']) AS Event, Body AS Message,\n  arrayStringConcat(arrayFilter(x -> x != '', [\n    if(LogAttributes['message'] != '', concat('message: ', LogAttributes['message']), ''),\n    if(LogAttributes['previousStatus'] != '', concat('was: ', LogAttributes['previousStatus']), ''),\n    if(LogAttributes['error'] != '', concat('error: ', LogAttributes['error']), '')]), '; ') AS Details,\n  LogAttributes['creator'] AS Creator\nFROM otel_logs AS l LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info ON info.service = l.LogAttributes['targetId']\nWHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['targetId'] IN (${service:singlequote})\n  AND if(EventName != '', EventName, LogAttributes['event.name']) IN (${event:singlequote}) AND multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') IN (${severity:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY l.Timestamp DESC LIMIT 1000"
+        }
+      ],
+      "description": "Newest first. Details holds the attributes some events add: the provider's message, the previous state, the error.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 14
+      },
+      "id": 7
+    },
+    {
+      "type": "row",
+      "title": "Utilization reported to Codesphere",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 8
+    },
+    {
+      "type": "timeseries",
+      "title": "Utilization of plan",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.95
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "displayName": "${__field.labels.resource}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time,\n  concat(if(Attributes['name'] != '', Attributes['name'], Attributes['targetId']), ' ', Attributes['resource']) AS resource, max(Value) AS value\nFROM otel_metrics_gauge\nWHERE $__timeFilter(TimeUnix) AND Attributes['targetId'] IN (${service:singlequote}) AND MetricName = 'codesphere.managed_service.utilization.ratio'\nGROUP BY time, resource ORDER BY time"
+        }
+      ],
+      "description": "Value divided by the plan value, per resource, as the marketplace exports it (codesphere.managed_service.utilization).",
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 9
+      },
+      "id": 9
+    }
+  ]
+}

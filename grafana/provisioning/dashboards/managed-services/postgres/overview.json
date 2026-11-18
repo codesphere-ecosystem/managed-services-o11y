@@ -1,0 +1,949 @@
+{
+  "uid": "ms-postgres-overview",
+  "title": "Postgres overview",
+  "description": "Managed Postgres, FerretDB and Babelfish services: CloudNativePG metrics from the resource group Alloy, pod and volume usage from the team collector, and the utilization the provider reports to Codesphere.",
+  "tags": [
+    "managed-services",
+    "managed-service-postgres"
+  ],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "label": "Service",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT Attributes['managed-services.codesphere.com/id'] FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND Attributes['managed-services.codesphere.com/id'] != '' ORDER BY 1",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT Attributes['managed-services.codesphere.com/id'] FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND Attributes['managed-services.codesphere.com/id'] != '' ORDER BY 1"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "managed-services"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "title": "Dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "table",
+      "title": "Status",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT\n  up.service AS Service,\n  names.v AS Name,\n  up.v AS Up,\n  up.pods AS Instances,\n  version.v AS Version,\n  conn.v AS Connections,\n  maxconn.v AS `Max connections`,\n  size.v AS `Database size`,\n  lag.v AS `Replication lag`,\n  errors.v AS `Exporter errors`\nFROM (SELECT service, max(if(last > now() - INTERVAL 10 MINUTE, v, 0)) AS v, countIf(last > now() - INTERVAL 10 MINUTE) AS pods FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v, max(TimeUnix) AS last\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  GROUP BY service, series) GROUP BY service) AS up\nLEFT JOIN (SELECT Attributes['managed-services.codesphere.com/id'] AS service, argMax(Attributes['full'], TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_postgres_version'\n  GROUP BY service) AS version USING service\nLEFT JOIN (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_backends_total'\n  GROUP BY service, series) GROUP BY service) AS conn USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_settings_setting' AND Attributes['name'] = 'max_connections'\n  GROUP BY service, series) GROUP BY service) AS maxconn USING service\nLEFT JOIN (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_database_size_bytes' AND Attributes['datname'] NOT IN ('template0', 'template1')\n  GROUP BY service, series) GROUP BY service) AS size USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_replication_lag'\n  GROUP BY service, series) GROUP BY service) AS lag USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_last_collection_error'\n  GROUP BY service, series) GROUP BY service) AS errors USING service\nLEFT JOIN (SELECT LogAttributes['targetId'] AS service, argMax(LogAttributes['name'], Timestamp) AS v\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['name'] != ''\n  GROUP BY service) AS names USING service\nWHERE up.service IN (${service:singlequote})\nORDER BY Service\nSETTINGS join_use_nulls = 1"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Database size"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Replication lag"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Up"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "down",
+                        "color": "red"
+                      },
+                      "1": {
+                        "text": "up",
+                        "color": "green"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-background"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Exporter errors"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {
+                        "text": "none",
+                        "color": "green"
+                      },
+                      "1": {
+                        "text": "failing",
+                        "color": "orange"
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "color-text"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Service"
+            },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Logs and events of ${__value.raw}",
+                    "url": "/d/ms-postgres-logs?var-service=${__value.raw}&${__url_time_range}"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "description": "Services that reported in the time range. Up is down when no metrics arrived for 10 minutes; the other columns are the latest values of the last 10 minutes. Names come from marketplace events of the last 30 days.",
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 7
+      },
+      "id": 2
+    },
+    {
+      "type": "row",
+      "title": "Activity",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 3
+    },
+    {
+      "type": "timeseries",
+      "title": "Connections",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_total' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 8,
+        "h": 8
+      },
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Waiting on locks",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_waiting_total' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "description": "Connections waiting for a lock another transaction holds.",
+      "gridPos": {
+        "x": 8,
+        "y": 9,
+        "w": 8,
+        "h": 8
+      },
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "Longest running transaction",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_max_tx_duration_seconds' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 9,
+        "w": 8,
+        "h": 8
+      },
+      "id": 6
+    },
+    {
+      "type": "timeseries",
+      "title": "Commits",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_xact_commit' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 17,
+        "w": 6,
+        "h": 8
+      },
+      "id": 7
+    },
+    {
+      "type": "timeseries",
+      "title": "Rollbacks",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_xact_rollback' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 6,
+        "y": 17,
+        "w": 6,
+        "h": 8
+      },
+      "id": 8
+    },
+    {
+      "type": "timeseries",
+      "title": "Deadlocks",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_deadlocks' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 17,
+        "w": 6,
+        "h": 8
+      },
+      "id": 9
+    },
+    {
+      "type": "timeseries",
+      "title": "Cache hit ratio",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sumIf(d, kind = 'hit') / sum(d) AS value FROM (\n  SELECT time, service, kind, greatest(v - lagInFrame(v, 1, v) OVER (PARTITION BY service, series, kind ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), 0) AS d\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series,\n      if(MetricName = 'cnpg_pg_stat_database_blks_hit', 'hit', 'read') AS kind, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName IN ('cnpg_pg_stat_database_blks_hit', 'cnpg_pg_stat_database_blks_read')\n      AND service IN (${service:singlequote})\n    GROUP BY time, service, series, kind\n  )\n) GROUP BY time, service HAVING sum(d) > 0 ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "description": "Share of block reads served from shared buffers. Low values mean the working set doesn't fit in memory.",
+      "gridPos": {
+        "x": 18,
+        "y": 17,
+        "w": 6,
+        "h": 8
+      },
+      "id": 10
+    },
+    {
+      "type": "row",
+      "title": "Storage and replication",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 11
+    },
+    {
+      "type": "timeseries",
+      "title": "Database size",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_database_size_bytes' AND service IN (${service:singlequote}) AND Attributes['datname'] NOT IN ('template0', 'template1')\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 26,
+        "w": 8,
+        "h": 8
+      },
+      "id": 12
+    },
+    {
+      "type": "timeseries",
+      "title": "Temporary files written",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_temp_bytes' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "description": "Queries that spill sorts and hashes to disk; raise work_mem or add indexes if this stays high.",
+      "gridPos": {
+        "x": 8,
+        "y": 26,
+        "w": 8,
+        "h": 8
+      },
+      "id": 13
+    },
+    {
+      "type": "timeseries",
+      "title": "WAL files",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_pg_wal' AND service IN (${service:singlequote}) AND Attributes['value'] = 'count'\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 16,
+        "y": 26,
+        "w": 8,
+        "h": 8
+      },
+      "id": 14
+    },
+    {
+      "type": "timeseries",
+      "title": "Replication lag",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_replication_lag' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 8,
+        "h": 8
+      },
+      "id": 15
+    },
+    {
+      "type": "timeseries",
+      "title": "Transaction ID age",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_database_xid_age' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "description": "Postgres stops accepting writes near 2 billion; autovacuum keeps it low.",
+      "gridPos": {
+        "x": 8,
+        "y": 34,
+        "w": 8,
+        "h": 8
+      },
+      "id": 16
+    },
+    {
+      "type": "timeseries",
+      "title": "Since last WAL archive",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, service, min(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, min(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_archiver_seconds_since_last_archival' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "description": "Grows on an idle database too; only a concern together with failing archiving.",
+      "gridPos": {
+        "x": 16,
+        "y": 34,
+        "w": 8,
+        "h": 8
+      },
+      "id": 17
+    },
+    {
+      "type": "row",
+      "title": "Resources",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 42,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 18
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "WITH pods AS (\n  SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service IN (${service:singlequote})\n)\nSELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'k8s.pod.cpu.usage' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod\n) AS m JOIN pods USING pod\nGROUP BY time, service ORDER BY time"
+        }
+      ],
+      "description": "Kubelet stats of the rg namespace, collected by the team collector, joined to services by pod. Cores, summed over all instances.",
+      "gridPos": {
+        "x": 0,
+        "y": 43,
+        "w": 8,
+        "h": 8
+      },
+      "id": 19
+    },
+    {
+      "type": "timeseries",
+      "title": "Memory",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "displayName": "${__field.labels.service}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "WITH pods AS (\n  SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service IN (${service:singlequote})\n)\nSELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'k8s.pod.memory.working_set' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod\n) AS m JOIN pods USING pod\nGROUP BY time, service ORDER BY time"
+        }
+      ],
+      "description": "Kubelet stats of the rg namespace, collected by the team collector, joined to services by pod. Working set, summed over all instances.",
+      "gridPos": {
+        "x": 8,
+        "y": 43,
+        "w": 8,
+        "h": 8
+      },
+      "id": 20
+    },
+    {
+      "type": "timeseries",
+      "title": "Disk usage",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.8
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "unit": "percentunit",
+          "displayName": "${__field.labels.volume}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "WITH pods AS (\n  SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service IN (${service:singlequote})\n)\nSELECT time, concat(service, ' ', pvc) AS volume, max(used) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod,\n    ResourceAttributes['k8s.persistentvolumeclaim.name'] AS pvc,\n    1 - avgIf(Value, MetricName = 'k8s.volume.available') / avgIf(Value, MetricName = 'k8s.volume.capacity') AS used\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName IN ('k8s.volume.available', 'k8s.volume.capacity') AND pvc != '' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod, pvc\n) AS m JOIN pods USING pod\nWHERE isFinite(used)\nGROUP BY time, volume ORDER BY time"
+        }
+      ],
+      "description": "Kubelet stats of the rg namespace, collected by the team collector, joined to services by pod. Used share of each volume (data and WAL). Postgres stops when a volume is full.",
+      "gridPos": {
+        "x": 16,
+        "y": 43,
+        "w": 8,
+        "h": 8
+      },
+      "id": 21
+    },
+    {
+      "type": "row",
+      "title": "Utilization reported to Codesphere",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 51,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 22
+    },
+    {
+      "type": "timeseries",
+      "title": "Utilization of plan",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "displayName": "${__field.labels.resource}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, concat(Attributes['targetId'], ' ', Attributes['resource']) AS resource, max(Value) AS value\nFROM otel_metrics_gauge\nWHERE $__timeFilter(TimeUnix) AND MetricName = 'codesphere.managed_service.utilization.ratio' AND Attributes['targetId'] IN (${service:singlequote})\nGROUP BY time, resource ORDER BY time"
+        }
+      ],
+      "description": "What the provider reports to the marketplace for each plan resource, as the marketplace exports it (codesphere.managed_service.utilization). Value divided by the plan value.",
+      "gridPos": {
+        "x": 0,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "id": 23
+    },
+    {
+      "type": "table",
+      "title": "Latest utilization",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Of plan"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT Attributes['targetId'] AS Service, Attributes['name'] AS Name, Attributes['resource'] AS Resource,\n  argMaxIf(Value, TimeUnix, MetricName = 'codesphere.managed_service.utilization') AS Current,\n  argMaxIf(Value, TimeUnix, MetricName = 'codesphere.managed_service.utilization.ratio') AS `Of plan`,\n  max(TimeUnix) AS Reported\nFROM otel_metrics_gauge\nWHERE $__timeFilter(TimeUnix) AND MetricName IN ('codesphere.managed_service.utilization', 'codesphere.managed_service.utilization.ratio')\n  AND Attributes['targetId'] IN (${service:singlequote})\nGROUP BY Service, Name, Resource ORDER BY Service, Resource"
+        }
+      ],
+      "description": "What the provider reports to the marketplace for each plan resource, as the marketplace exports it (codesphere.managed_service.utilization). Current is in the unit of the plan parameter.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 52,
+        "w": 12,
+        "h": 8
+      },
+      "id": 24
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "Workspace traces",
+      "folder": "Workspaces",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "cs-trace-errors",
+          "title": "Service error rate",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 600,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT ServiceName AS service, countIf(StatusCode = 'Error') / count() AS error_ratio\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 10 MINUTE AND SpanKind IN ('Server', 'Consumer')\nGROUP BY service\nHAVING count() >= 50"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.05
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "10m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.service }} fails {{ humanizePercentage $values.A.Value }} of its requests",
+            "description": "More than 5% of the server and consumer spans of {{ $labels.service }} ended with an error in the last 10 minutes (at least 50 spans).",
+            "dashboard_url": "/d/ws-overview"
+          }
+        }
+      ]
+    }
+  ]
+}
