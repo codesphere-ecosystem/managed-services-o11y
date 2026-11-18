@@ -1,0 +1,319 @@
+{
+  "apiVersion": 1,
+  "groups": [
+    {
+      "orgId": 1,
+      "name": "Managed services",
+      "folder": "Managed services",
+      "interval": "1m",
+      "rules": [
+        {
+          "uid": "ms-unhealthy",
+          "title": "Managed service unhealthy",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT service, message, 1 AS unhealthy FROM (SELECT LogAttributes['targetId'] AS service, argMax(multiIf(Body = 'Provider reports the service as healthy', 'healthy',\n    Body = 'Provider reports the service as degraded', 'degraded',\n    Body = 'Provider reports the service as unhealthy', 'unhealthy',\n    Body = 'Provider reports the service health as unknown', 'unknown', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(Body = 'Provider reports the service as healthy', 'healthy',\n    Body = 'Provider reports the service as degraded', 'degraded',\n    Body = 'Provider reports the service as unhealthy', 'unhealthy',\n    Body = 'Provider reports the service health as unknown', 'unknown', '') != ''\n  GROUP BY service) WHERE state = 'unhealthy') AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "{{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }} is unhealthy",
+            "description": "The provider reports the service as unhealthy{{ if $labels.message }}: {{ $labels.message }}{{ end }}. Resolves when it reports another health state.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "ms-degraded",
+          "title": "Managed service degraded",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT service, state, message, 1 AS degraded FROM (SELECT LogAttributes['targetId'] AS service, argMax(multiIf(Body = 'Provider reports the service as healthy', 'healthy',\n    Body = 'Provider reports the service as degraded', 'degraded',\n    Body = 'Provider reports the service as unhealthy', 'unhealthy',\n    Body = 'Provider reports the service health as unknown', 'unknown', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(Body = 'Provider reports the service as healthy', 'healthy',\n    Body = 'Provider reports the service as degraded', 'degraded',\n    Body = 'Provider reports the service as unhealthy', 'unhealthy',\n    Body = 'Provider reports the service health as unknown', 'unknown', '') != ''\n  GROUP BY service) WHERE state IN ('degraded', 'unknown')) AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "15m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }} is {{ $labels.state }}",
+            "description": "The provider reports the service health as {{ $labels.state }}{{ if $labels.message }}: {{ $labels.message }}{{ end }}.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "ms-backups-overdue",
+          "title": "Managed service backups overdue",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT service, 1 AS overdue FROM (SELECT LogAttributes['targetId'] AS service, argMax(multiIf(Body = 'Backups are up to date', 'upToDate', Body = 'Backups are overdue', 'overdue', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(Body = 'Backups are up to date', 'upToDate', Body = 'Backups are overdue', 'overdue', '') != ''\n  GROUP BY service) WHERE state = 'overdue') AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "Backups of {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }} are overdue",
+            "description": "The provider has no recent enough backup for the schedule. The event log has the failed backups, if any.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "ms-utilization-close",
+          "title": "Managed service resource close to plan limit",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT service, resource, message AS used, 1 AS close FROM (SELECT LogAttributes['targetId'] AS service, extract(Body, '^Utilization of (.+) is (?:normal|close to the plan value|at the plan value)$') AS resource, argMax(multiIf(endsWith(Body, ' is normal'), 'normal', endsWith(Body, ' is close to the plan value'), 'closeToLimit', endsWith(Body, ' is at the plan value'), 'atLimit', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(endsWith(Body, ' is normal'), 'normal', endsWith(Body, ' is close to the plan value'), 'closeToLimit', endsWith(Body, ' is at the plan value'), 'atLimit', '') != ''\n  GROUP BY service, extract(Body, '^Utilization of (.+) is (?:normal|close to the plan value|at the plan value)$') AS resource) WHERE state = 'closeToLimit') AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.resource }} of {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }} is close to the plan value ({{ $labels.used }})",
+            "description": "Raise the plan before it is used up; for storage the service stops accepting writes once it is full.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "ms-utilization-limit",
+          "title": "Managed service resource at plan limit",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT service, resource, message AS used, 1 AS at_limit FROM (SELECT LogAttributes['targetId'] AS service, extract(Body, '^Utilization of (.+) is (?:normal|close to the plan value|at the plan value)$') AS resource, argMax(multiIf(endsWith(Body, ' is normal'), 'normal', endsWith(Body, ' is close to the plan value'), 'closeToLimit', endsWith(Body, ' is at the plan value'), 'atLimit', ''), Timestamp) AS state,\n    argMax(LogAttributes['message'], Timestamp) AS message, max(Timestamp) AS since\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 7 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND multiIf(endsWith(Body, ' is normal'), 'normal', endsWith(Body, ' is close to the plan value'), 'closeToLimit', endsWith(Body, ' is at the plan value'), 'atLimit', '') != ''\n  GROUP BY service, extract(Body, '^Utilization of (.+) is (?:normal|close to the plan value|at the plan value)$') AS resource) WHERE state = 'atLimit') AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "critical"
+          },
+          "annotations": {
+            "summary": "{{ $labels.resource }} of {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }} is at the plan value ({{ $labels.used }})",
+            "description": "The service is out of {{ $labels.resource }}. Raise the plan.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "ms-error-event",
+          "title": "Managed service operation failed",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT LogAttributes['targetId'] AS service, if(EventName != '', EventName, LogAttributes['event.name']) AS event, count() AS failures FROM otel_logs\nWHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND SeverityNumber >= 17 AND NOT (startsWith(Body, 'Provider reports the service') OR startsWith(Body, 'Backups are ') OR startsWith(Body, 'Utilization of '))\nGROUP BY service, event) AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.event }}: error for {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }}",
+            "description": "The marketplace logged an error for the service, like a failed backup or a provider that doesn't answer. State changes (health, backups, utilization) have their own alerts. Resolves 15 minutes after the last error.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+          }
+        }
+      ]
+    }
+  ]
+}

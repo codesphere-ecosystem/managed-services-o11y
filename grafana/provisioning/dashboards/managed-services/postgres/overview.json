@@ -43,7 +43,7 @@
     {
       "type": "dashboards",
       "tags": [
-        "managed-service-postgres"
+        "managed-services"
       ],
       "asDropdown": false,
       "includeVars": true,

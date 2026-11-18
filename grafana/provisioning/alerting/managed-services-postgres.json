@@ -370,58 +370,6 @@
             "description": "Long transactions hold back vacuum, so tables and indexes bloat, and they can hold locks other queries wait for.",
             "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
           }
-        },
-        {
-          "uid": "cs-pg-error-event",
-          "title": "Postgres backup or operation failed",
-          "condition": "B",
-          "data": [
-            {
-              "refId": "A",
-              "relativeTimeRange": {
-                "from": 900,
-                "to": 0
-              },
-              "datasourceUid": "clickhouse",
-              "model": {
-                "refId": "A",
-                "editorType": "sql",
-                "format": 1,
-                "rawSql": "SELECT LogAttributes['targetId'] AS service, if(EventName != '', EventName, LogAttributes['event.name']) AS event, count() AS failures FROM otel_logs\nWHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish') AND SeverityNumber >= 17\nGROUP BY service, event"
-              }
-            },
-            {
-              "refId": "B",
-              "datasourceUid": "__expr__",
-              "model": {
-                "refId": "B",
-                "type": "threshold",
-                "expression": "A",
-                "conditions": [
-                  {
-                    "evaluator": {
-                      "type": "gt",
-                      "params": [
-                        0
-                      ]
-                    }
-                  }
-                ]
-              }
-            }
-          ],
-          "noDataState": "OK",
-          "execErrState": "Error",
-          "for": "0s",
-          "labels": {
-            "severity": "warning",
-            "managed_service": "postgres"
-          },
-          "annotations": {
-            "summary": "{{ $labels.event }} for Postgres {{ $labels.service }}",
-            "description": "The marketplace logged an error event for this service, like a failed backup. The event log in the \"Postgres logs and events\" dashboard has the message.",
-            "dashboard_url": "/d/ms-postgres-logs?var-service={{ $labels.service }}"
-          }
         }
       ]
     }
