@@ -18,6 +18,18 @@ detailsSchema:
     hostname:
       type: string
       format: uri
+      description: Grafana. Senders outside the cluster reach the collector at <hostname>/otlp (OTLP/HTTP), with the otlpToken as bearer token.
+    # Filled in by the marketplace for each server and port of the landscape: service_url_<server>_<port>.
+    service_url_otel-collector_4318:
+      type: string
+      readOnly: true
+      title: OTel collector endpoint (OTLP/HTTP)
+      description: In-cluster endpoint of the collector. Use it as the team's OTLP export endpoint (protocol HTTP, otlpToken as auth token), or from workspaces of the team with the otlpToken as bearer token.
+    service_url_otel-collector_4317:
+      type: string
+      readOnly: true
+      title: OTel collector endpoint (OTLP/gRPC)
+      description: In-cluster endpoint of the collector for OTLP/gRPC. Needs the otlpToken as bearer token.
   additionalProperties: false
 secretsSchema:
   type: object

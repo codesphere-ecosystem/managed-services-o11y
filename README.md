@@ -21,7 +21,7 @@ app ──OTLP/HTTP──▶ gateway /otlp ──▶ otel-collector ──native
 1. Create a workspace from this repo.
 2. Sync the landscape and fill the vault secrets: `clickhousePassword` (8–32 alphanumeric), `otlpToken`, `grafanaAdminPassword`, `grafanaDbPassword`, `grafanaDbSuperuserPassword`.
 3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** (all providers), one folder per provider (**Managed services · Postgres**) and **Workspaces**.
-4. Point the team's OTLP export (team settings) at `https://<dev domain>/otlp` with the `otlpToken`, so the team collector forwards the resource group's telemetry here.
+4. Point the team's OTLP export (team settings) at the collector endpoint from the service details (`https://<dev domain>/otlp` works too) with the `otlpToken`, so the team collector forwards the resource group's telemetry here.
 
 Plans `21` (containers) and `8` (router) in [`ci.yml`](ci.yml) are placeholders; pick plans that exist on the target cluster.
 
@@ -35,7 +35,7 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <otlpToken>
 ```
 
-Inside the landscape, use `otel-collector:4317` or `:4318` with the same header.
+Inside the landscape, use `otel-collector:4317` or `:4318` with the same header. From elsewhere in the cluster, e.g. as the team's OTLP export, use the in-cluster URLs the service details show (`service_url_otel-collector_4318` for HTTP, `_4317` for gRPC).
 
 ## What the resource group sends
 
