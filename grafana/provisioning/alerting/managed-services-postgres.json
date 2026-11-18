@@ -3,8 +3,8 @@
   "groups": [
     {
       "orgId": 1,
-      "name": "Managed Postgres",
-      "folder": "Codesphere",
+      "name": "Postgres",
+      "folder": "Managed services \u00b7 Postgres",
       "interval": "1m",
       "rules": [
         {
@@ -50,11 +50,13 @@
           "execErrState": "Error",
           "for": "5m",
           "labels": {
-            "severity": "critical"
+            "severity": "critical",
+            "managed_service": "postgres"
           },
           "annotations": {
             "summary": "Postgres {{ $labels.service }} is down",
-            "description": "The CloudNativePG exporter of managed service {{ $labels.service }} can't reach Postgres, or has sent no metrics for 10 minutes."
+            "description": "The CloudNativePG exporter of managed service {{ $labels.service }} can't reach Postgres, or has sent no metrics for 10 minutes.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
           }
         },
         {
@@ -100,11 +102,13 @@
           "execErrState": "Error",
           "for": "10m",
           "labels": {
-            "severity": "warning"
+            "severity": "warning",
+            "managed_service": "postgres"
           },
           "annotations": {
             "summary": "Postgres {{ $labels.service }} uses {{ humanizePercentage $values.A.Value }} of its connections",
-            "description": "New connections are refused once max_connections is reached."
+            "description": "New connections are refused once max_connections is reached.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
           }
         },
         {
@@ -150,11 +154,13 @@
           "execErrState": "Error",
           "for": "10m",
           "labels": {
-            "severity": "warning"
+            "severity": "warning",
+            "managed_service": "postgres"
           },
           "annotations": {
             "summary": "Postgres {{ $labels.service }} replicas lag {{ humanizeDuration $values.A.Value }}",
-            "description": "A replica is more than a minute behind the primary; reads from it are stale and a failover may lose data."
+            "description": "A replica is more than a minute behind the primary; reads from it are stale and a failover may lose data.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
           }
         },
         {
@@ -173,7 +179,7 @@
                 "refId": "A",
                 "editorType": "sql",
                 "format": 1,
-                "rawSql": "SELECT Attributes['managed-services.codesphere.com/id'] AS service, max(Value) - min(Value) AS failures\nFROM otel_metrics_gauge\nWHERE TimeUnix > now() - INTERVAL 15 MINUTE AND MetricName = 'cnpg_pg_stat_archiver_failed_count' AND service != ''\nGROUP BY service, toString(Attributes)"
+                "rawSql": "SELECT service, max(f) AS failures FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, max(Value) - min(Value) AS f\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 15 MINUTE AND MetricName = 'cnpg_pg_stat_archiver_failed_count' AND service != ''\n  GROUP BY service, toString(Attributes)) GROUP BY service"
               }
             },
             {
@@ -200,11 +206,13 @@
           "execErrState": "Error",
           "for": "0s",
           "labels": {
-            "severity": "critical"
+            "severity": "critical",
+            "managed_service": "postgres"
           },
           "annotations": {
             "summary": "Postgres {{ $labels.service }} fails to archive WAL",
-            "description": "WAL that isn't archived can't be restored, and piles up on the volume until it is full."
+            "description": "WAL that isn't archived can't be restored, and piles up on the volume until it is full.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
           }
         },
         {
@@ -250,30 +258,24 @@
           "execErrState": "Error",
           "for": "30m",
           "labels": {
-            "severity": "warning"
+            "severity": "warning",
+            "managed_service": "postgres"
           },
           "annotations": {
             "summary": "Postgres {{ $labels.service }} is at transaction ID age {{ $values.A.Value }}",
-            "description": "Postgres stops accepting writes near 2 billion; autovacuum has to freeze old rows before then."
+            "description": "Postgres stops accepting writes near 2 billion; autovacuum has to freeze old rows before then.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
           }
-        }
-      ]
-    },
-    {
-      "orgId": 1,
-      "name": "Workspace traces",
-      "folder": "Codesphere",
-      "interval": "1m",
-      "rules": [
+        },
         {
-          "uid": "cs-trace-errors",
-          "title": "Service error rate",
+          "uid": "cs-pg-disk",
+          "title": "Postgres disk almost full",
           "condition": "B",
           "data": [
             {
               "refId": "A",
               "relativeTimeRange": {
-                "from": 600,
+                "from": 900,
                 "to": 0
               },
               "datasourceUid": "clickhouse",
@@ -281,7 +283,7 @@
                 "refId": "A",
                 "editorType": "sql",
                 "format": 1,
-                "rawSql": "SELECT ServiceName AS service, countIf(StatusCode = 'Error') / count() AS error_ratio\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 10 MINUTE AND SpanKind IN ('Server', 'Consumer')\nGROUP BY service\nHAVING count() >= 50"
+                "rawSql": "SELECT concat(service, ' ', pvc) AS volume, service, max(used) AS usage FROM (\n  SELECT ResourceAttributes['k8s.pod.name'] AS pod, ResourceAttributes['k8s.persistentvolumeclaim.name'] AS pvc,\n    1 - argMaxIf(Value, TimeUnix, MetricName = 'k8s.volume.available') / argMaxIf(Value, TimeUnix, MetricName = 'k8s.volume.capacity') AS used\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName IN ('k8s.volume.available', 'k8s.volume.capacity') AND pvc != ''\n  GROUP BY pod, pvc\n) AS m JOIN (SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 1 HOUR AND MetricName = 'cnpg_collector_up') AS p USING pod\nWHERE isFinite(used)\nGROUP BY volume, service"
               }
             },
             {
@@ -296,7 +298,7 @@
                     "evaluator": {
                       "type": "gt",
                       "params": [
-                        0.05
+                        0.9
                       ]
                     }
                   }
@@ -308,11 +310,117 @@
           "execErrState": "Error",
           "for": "10m",
           "labels": {
-            "severity": "warning"
+            "severity": "critical",
+            "managed_service": "postgres"
           },
           "annotations": {
-            "summary": "{{ $labels.service }} fails {{ humanizePercentage $values.A.Value }} of its requests",
-            "description": "More than 5% of the server and consumer spans of {{ $labels.service }} ended with an error in the last 10 minutes (at least 50 spans)."
+            "summary": "Volume {{ $labels.volume }} is {{ humanizePercentage $values.A.Value }} full",
+            "description": "Postgres stops accepting writes when its data or WAL volume is full. Raise the storage of the plan, or delete data.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "cs-pg-long-transaction",
+          "title": "Postgres transaction running for over an hour",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT Attributes['managed-services.codesphere.com/id'] AS service, max(Value) AS seconds FROM otel_metrics_gauge\nWHERE TimeUnix > now() - INTERVAL 5 MINUTE AND MetricName = 'cnpg_backends_max_tx_duration_seconds' AND service != ''\nGROUP BY service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        3600
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "labels": {
+            "severity": "warning",
+            "managed_service": "postgres"
+          },
+          "annotations": {
+            "summary": "Postgres {{ $labels.service }} has a transaction open for {{ humanizeDuration $values.A.Value }}",
+            "description": "Long transactions hold back vacuum, so tables and indexes bloat, and they can hold locks other queries wait for.",
+            "dashboard_url": "/d/ms-postgres-overview?var-service={{ $labels.service }}"
+          }
+        },
+        {
+          "uid": "cs-pg-error-event",
+          "title": "Postgres backup or operation failed",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT LogAttributes['targetId'] AS service, if(EventName != '', EventName, LogAttributes['event.name']) AS event, count() AS failures FROM otel_logs\nWHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish') AND SeverityNumber >= 17\nGROUP BY service, event"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "warning",
+            "managed_service": "postgres"
+          },
+          "annotations": {
+            "summary": "{{ $labels.event }} for Postgres {{ $labels.service }}",
+            "description": "The marketplace logged an error event for this service, like a failed backup. The event log in the \"Postgres logs and events\" dashboard has the message.",
+            "dashboard_url": "/d/ms-postgres-logs?var-service={{ $labels.service }}"
           }
         }
       ]

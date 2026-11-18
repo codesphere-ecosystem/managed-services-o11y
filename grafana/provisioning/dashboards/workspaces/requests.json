@@ -1,0 +1,470 @@
+{
+  "uid": "ws-requests",
+  "title": "Workspace requests",
+  "description": "Requests through the workspace routers, from the spans nginx sends when request tracing is turned on for a workspace.",
+  "tags": [
+    "workspaces"
+  ],
+  "schemaVersion": 39,
+  "editable": true,
+  "graphTooltip": 1,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "workspace",
+        "label": "Workspace",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT workspace FROM (\n  SELECT LogAttributes['workspaceId'] AS workspace FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] != ''\n  UNION ALL\n  SELECT substring(ServiceName, 4) FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-')\n) ORDER BY toUInt64OrZero(workspace)",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT workspace FROM (\n  SELECT LogAttributes['workspaceId'] AS workspace FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] != ''\n  UNION ALL\n  SELECT substring(ServiceName, 4) FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-')\n) ORDER BY toUInt64OrZero(workspace)"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "server",
+        "label": "Server",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT SpanAttributes['server.address'] FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) ORDER BY 1",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT SpanAttributes['server.address'] FROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) ORDER BY 1"
+        },
+        "refresh": 2,
+        "sort": 0,
+        "multi": true,
+        "includeAll": true,
+        "current": {},
+        "options": [],
+        "hide": 0
+      },
+      {
+        "name": "path",
+        "label": "Path contains",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "text": "",
+          "value": ""
+        },
+        "hide": 0
+      }
+    ]
+  },
+  "links": [
+    {
+      "type": "dashboards",
+      "tags": [
+        "workspaces"
+      ],
+      "asDropdown": false,
+      "includeVars": true,
+      "keepTime": true,
+      "title": "Dashboards"
+    }
+  ],
+  "panels": [
+    {
+      "type": "row",
+      "title": "Traffic",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 1
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests by server",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "displayName": "${__field.labels.server}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, concat(substring(ServiceName, 4), ' / ', SpanAttributes['server.address']) AS server, count() / $__interval_s AS value\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) AND SpanAttributes['server.address'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']), '$path') > 0, $path) GROUP BY time, server ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 12,
+        "h": 8
+      },
+      "id": 2
+    },
+    {
+      "type": "timeseries",
+      "title": "Responses by status class",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "stacking": {
+              "mode": "normal",
+              "group": "A"
+            },
+            "fillOpacity": 30
+          },
+          "unit": "reqps",
+          "displayName": "${__field.labels.status}"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "2xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "green"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "3xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "orange"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, if(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) = 0, 'none', concat(toString(intDiv(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])), 100)), 'xx')) AS status, count() / $__interval_s AS value\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) AND SpanAttributes['server.address'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']), '$path') > 0, $path) GROUP BY time, status ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 1,
+        "w": 12,
+        "h": 8
+      },
+      "id": 3
+    },
+    {
+      "type": "row",
+      "title": "Latency and errors",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 9,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 4
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time,\n  quantile(0.5)(Duration) / 1e9 AS p50, quantile(0.95)(Duration) / 1e9 AS p95, quantile(0.99)(Duration) / 1e9 AS p99\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) AND SpanAttributes['server.address'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']), '$path') > 0, $path) GROUP BY time ORDER BY time"
+        }
+      ],
+      "description": "Over all selected servers.",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "id": 5
+    },
+    {
+      "type": "timeseries",
+      "title": "5xx responses by server",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "displayName": "${__field.labels.server}"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT toStartOfInterval(Timestamp, INTERVAL $__interval_s second) AS time, concat(substring(ServiceName, 4), ' / ', SpanAttributes['server.address']) AS server, countIf(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 500) / count() AS value\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) AND SpanAttributes['server.address'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']), '$path') > 0, $path) GROUP BY time, server ORDER BY time"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 10,
+        "w": 12,
+        "h": 8
+      },
+      "id": 6
+    },
+    {
+      "type": "row",
+      "title": "Endpoints",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 18,
+        "w": 24,
+        "h": 1
+      },
+      "panels": [],
+      "id": 7
+    },
+    {
+      "type": "table",
+      "title": "Top paths",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "5xx"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "4xx"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p50"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "p95"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT SpanAttributes['server.address'] AS Server, if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']) AS Path, count() AS Requests,\n  countIf(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 500) / count() AS `5xx`, countIf(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 400 AND toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) < 500) / count() AS `4xx`,\n  quantile(0.5)(Duration) / 1e9 AS p50, quantile(0.95)(Duration) / 1e9 AS p95\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) AND SpanAttributes['server.address'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']), '$path') > 0, $path) GROUP BY Server, Path ORDER BY Requests DESC LIMIT 100"
+        }
+      ],
+      "description": "Paths with their query string removed by nginx.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 19,
+        "w": 24,
+        "h": 9
+      },
+      "id": 8
+    },
+    {
+      "type": "table",
+      "title": "Slowest and failed requests",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Duration"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT Timestamp AS Time, substring(ServiceName, 4) AS Workspace, SpanAttributes['server.address'] AS Server, SpanName AS Request, toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) AS Status,\n  Duration / 1e9 AS Duration, TraceId\nFROM otel_traces WHERE $__timeFilter(Timestamp) AND startsWith(ServiceName, 'ws-') AND substring(ServiceName, 4) IN (${workspace:singlequote}) AND SpanAttributes['server.address'] IN (${server:singlequote}) AND $__conditionalAll(positionCaseInsensitive(if(SpanAttributes['url.path'] != '', SpanAttributes['url.path'], SpanAttributes['http.target']), '$path') > 0, $path) AND (toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 500 OR Duration > 1e9)\nORDER BY Timestamp DESC LIMIT 200"
+        }
+      ],
+      "description": "Requests that took over a second or failed with 5xx. Search the TraceId in Explore to see the whole trace, including spans the app sends itself.",
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 28,
+        "w": 24,
+        "h": 9
+      },
+      "id": 9
+    }
+  ]
+}
