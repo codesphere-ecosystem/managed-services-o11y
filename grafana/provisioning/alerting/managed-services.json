@@ -278,7 +278,7 @@
                 "refId": "A",
                 "editorType": "sql",
                 "format": 1,
-                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT LogAttributes['targetId'] AS service, if(EventName != '', EventName, LogAttributes['event.name']) AS event, count() AS failures FROM otel_logs\nWHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND SeverityNumber >= 17 AND NOT (startsWith(Body, 'Provider reports the service') OR startsWith(Body, 'Backups are ') OR startsWith(Body, 'Utilization of '))\nGROUP BY service, event) AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT LogAttributes['targetId'] AS service, if(EventName != '', EventName, LogAttributes['event.name']) AS event,\n  multiIf(positionCaseInsensitive(event, 'backup') > 0, 'backup', positionCaseInsensitive(event, 'restore') > 0, 'restore', positionCaseInsensitive(event, 'autoscal') > 0, 'autoscaling', positionCaseInsensitive(event, 'reconcil') > 0, 'reconciliation', 'operation') AS operation,\n  left(argMax(if(LogAttributes['error'] != '', LogAttributes['error'], LogAttributes['message']), Timestamp), 200) AS cause,\n  count() AS failures FROM otel_logs\nWHERE Timestamp > now() - INTERVAL 15 MINUTE AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND SeverityNumber >= 17 AND NOT (startsWith(Body, 'Provider reports the service') OR startsWith(Body, 'Backups are ') OR startsWith(Body, 'Utilization of '))\nGROUP BY service, event, operation) AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
               }
             },
             {
@@ -308,9 +308,9 @@
             "severity": "warning"
           },
           "annotations": {
-            "summary": "{{ $labels.event }}: error for {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }}",
-            "description": "The marketplace logged an error for the service, like a failed backup or a provider that doesn't answer. State changes (health, backups, utilization) have their own alerts. Resolves 15 minutes after the last error.",
-            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}"
+            "summary": "{{ $labels.event }} for {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }}{{ if $labels.cause }}: {{ $labels.cause }}{{ end }}",
+            "description": "The marketplace logged {{ $values.A.Value }} {{ $labels.operation }} error(s) for the service in the last 15 minutes{{ if $labels.cause }}, the latest because of: {{ $labels.cause }}{{ end }}. State changes (health, backups, utilization) have their own alerts. Resolves 15 minutes after the last error.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}&var-severity=error"
           }
         }
       ]

@@ -58,7 +58,7 @@ Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/): one
 
 - **Managed services** (every provider, from the marketplace)
   - *Managed services events*: current health, backups and utilization state per service, the event log and the reported utilization, filterable by provider, service, event and severity.
-  - Alert rules ([`managed-services.json`](grafana/provisioning/alerting/managed-services.json)): unhealthy, degraded or unknown health, backups overdue, a resource (storage, CPU, …) close to or at its plan value, and error events such as a failed backup or a provider that doesn't answer.
+  - Alert rules ([`managed-services.json`](grafana/provisioning/alerting/managed-services.json)): unhealthy, degraded or unknown health, backups overdue, a resource (storage, CPU, …) close to or at its plan value, and error events such as a failed backup or a provider that doesn't answer. Error alerts carry the event, the kind of operation (`operation`: backup, restore, autoscaling, reconciliation) and the cause of the latest error (`cause`) as labels, so the notification says what failed and why.
     The marketplace only logs health, backups and utilization when they change, so these rules look at the latest change of the last 7 days: they resolve with the next change, and a service deleted in a bad state keeps firing until its events expire.
 - **Managed services · Postgres** (Postgres, FerretDB and Babelfish)
   - *Postgres overview*: status, activity, storage and replication from CNPG, CPU/memory/disk from kubeletstats, utilization the provider reports.
