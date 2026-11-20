@@ -230,7 +230,7 @@
           },
           "editorType": "sql",
           "format": 2,
-          "rawSql": "SELECT Timestamp AS timestamp, Body AS body, if(LogAttributes['source'] = 'stderr', 'error', 'info') AS level,\n  LogAttributes['workspaceId'] AS workspace, LogAttributes['server'] AS server, LogAttributes['replicaId'] AS replica,\n  LogAttributes['stage'] AS stage, LogAttributes['stepNumber'] AS step\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['server'] IN (${server:singlequote}) AND LogAttributes['stage'] IN (${stage:singlequote}) AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY Timestamp DESC LIMIT 1000"
+          "rawSql": "SELECT Timestamp AS timestamp, Body AS body, multiIf(SeverityNumber >= 17, 'error', SeverityNumber >= 13, 'warning', 'info') AS level,\n  LogAttributes['workspaceId'] AS workspace, LogAttributes['server'] AS server, LogAttributes['replicaId'] AS replica,\n  LogAttributes['stage'] AS stage, LogAttributes['stepNumber'] AS step\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['workspaceId'] IN (${workspace:singlequote}) AND LogAttributes['server'] IN (${server:singlequote}) AND LogAttributes['stage'] IN (${stage:singlequote}) AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY Timestamp DESC LIMIT 1000"
         }
       ],
       "description": "stderr lines are shown as errors.",
