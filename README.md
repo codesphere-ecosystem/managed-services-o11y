@@ -68,7 +68,8 @@ Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/): one
   - *Workspaces overview*: requests, 5xx share, latency and log volume per workspace.
   - *Workspace requests*: router spans by server, status class and path, with the slowest and failed requests.
   - *Workspace logs*: pipeline output by server and stage.
-  - Alert rule ([`workspaces.json`](grafana/provisioning/alerting/workspaces.json)): over 5% failed server spans per traced service.
+  - Alert rules ([`workspaces.json`](grafana/provisioning/alerting/workspaces.json)): from the router spans, over 10% 5xx responses per workspace server for 5 minutes, and a server the router couldn't reach (502, 503, 504) in 3 or more minutes of the last 30, which is how a process that keeps crashing, for example OOM-killed, shows; over 5% failed server spans per service that sends its own traces.
+    Workspaces only send router spans with tracing on, and nothing reports an OOM kill as such yet.
 
 A new provider gets a `dashboards/managed-services/<provider>/` directory, a provider entry in [`folders.yaml`](grafana/provisioning/dashboards/folders.yaml) with folder `Managed services · <Provider>`, and an `alerting/managed-services-<provider>.json` with the same folder title.
 
