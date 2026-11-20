@@ -161,6 +161,57 @@
           }
         },
         {
+          "uid": "ms-backups-unconfirmed",
+          "title": "Managed service backups unconfirmed",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 900,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT s.*, info.name AS name, info.provider AS provider FROM (\nSELECT service, left(argMaxIf(err, last_check, err != ''), 200) AS cause, count() AS unconfirmed FROM (\n  SELECT LogAttributes['targetId'] AS service, LogAttributes['backupId'] AS backup,\n    minIf(Timestamp, if(EventName != '', EventName, LogAttributes['event.name']) = 'Backup initiation successful') AS initiated,\n    countIf(if(EventName != '', EventName, LogAttributes['event.name']) = 'Backup confirmation successful') AS confirmed,\n    maxIf(Timestamp, startsWith(if(EventName != '', EventName, LogAttributes['event.name']), 'Backup confirmation Failed')) AS last_check,\n    argMaxIf(LogAttributes['error'], Timestamp, startsWith(if(EventName != '', EventName, LogAttributes['event.name']), 'Backup confirmation Failed')) AS err\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 25 HOUR AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['backupId'] != ''\n    AND if(EventName != '', EventName, LogAttributes['event.name']) IN ('Backup initiation successful', 'Backup confirmation successful', 'Backup confirmation Failed: Backup does not exist yet', 'Backup confirmation Failed: Error')\n  GROUP BY service, backup)\nWHERE confirmed = 0 AND initiated < now() - INTERVAL 1 HOUR AND initiated > now() - INTERVAL 1 DAY\nGROUP BY service) AS s LEFT JOIN (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) AS info USING service"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $values.A.Value }} backup(s) of {{ $labels.provider }} service {{ if $labels.name }}{{ $labels.name }}{{ else }}{{ $labels.service }}{{ end }} not confirmed{{ if $labels.cause }}: {{ $labels.cause }}{{ end }}",
+            "description": "Backups were started over an hour ago, but the provider doesn't report them as done{{ if $labels.cause }} ({{ $labels.cause }}){{ end }}. The backup store may be unreachable or reject the credentials. Fires before the backups are overdue; the marketplace stops checking a backup after a day.",
+            "dashboard_url": "/d/ms-events?var-service={{ $labels.service }}&var-search=backup"
+          }
+        },
+        {
           "uid": "ms-utilization-close",
           "title": "Managed service resource close to plan limit",
           "condition": "B",
