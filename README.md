@@ -58,7 +58,7 @@ Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/): one
 
 - **Managed services** (every provider, from the marketplace)
   - *Managed services events*: current health, backups and utilization state per service, the event log and the reported utilization, filterable by provider, service, event and severity.
-  - Alert rules ([`managed-services.json`](grafana/provisioning/alerting/managed-services.json)): unhealthy, degraded or unknown health, backups overdue, a resource (storage, CPU, …) close to or at its plan value, and error events such as a failed backup or a provider that doesn't answer.
+  - Alert rules ([`managed-services.json`](grafana/provisioning/alerting/managed-services.json)): unhealthy, degraded or unknown health, backups overdue, backups started over an hour ago and still not confirmed (with the provider's error, such as wrong backup store credentials), a resource (storage, CPU, …) close to or at its plan value, and error events such as a failed backup or a provider that doesn't answer. Error alerts carry the event, the kind of operation (`operation`: backup, restore, autoscaling, reconciliation) and the cause of the latest error (`cause`) as labels, so the notification says what failed and why.
     The marketplace only logs health, backups and utilization when they change, so these rules look at the latest change of the last 7 days: they resolve with the next change, and a service deleted in a bad state keeps firing until its events expire.
 - **Managed services · Postgres** (Postgres, FerretDB and Babelfish)
   - *Postgres overview*: status, activity, storage and replication from CNPG, CPU/memory/disk from kubeletstats, utilization the provider reports.
@@ -68,7 +68,8 @@ Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/): one
   - *Workspaces overview*: requests, 5xx share, latency and log volume per workspace.
   - *Workspace requests*: router spans by server, status class and path, with the slowest and failed requests.
   - *Workspace logs*: pipeline output by server and stage.
-  - Alert rule ([`workspaces.json`](grafana/provisioning/alerting/workspaces.json)): over 5% failed server spans per traced service.
+  - Alert rules ([`workspaces.json`](grafana/provisioning/alerting/workspaces.json)): from the router spans, over 10% 5xx responses per workspace server for 5 minutes, and a server the router couldn't reach (502, 503, 504) in 3 or more minutes of the last 30, which is how a process that keeps crashing, for example OOM-killed, shows; over 5% failed server spans per service that sends its own traces.
+    Workspaces only send router spans with tracing on, and nothing reports an OOM kill as such yet.
 
 A new provider gets a `dashboards/managed-services/<provider>/` directory, a provider entry in [`folders.yaml`](grafana/provisioning/dashboards/folders.yaml) with folder `Managed services · <Provider>`, and an `alerting/managed-services-<provider>.json` with the same folder title.
 

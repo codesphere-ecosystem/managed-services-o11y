@@ -23,7 +23,7 @@
                 "refId": "A",
                 "editorType": "sql",
                 "format": 1,
-                "rawSql": "SELECT ServiceName AS service, countIf(StatusCode = 'Error') / count() AS error_ratio\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 10 MINUTE AND SpanKind IN ('Server', 'Consumer')\nGROUP BY service\nHAVING count() >= 50"
+                "rawSql": "SELECT ServiceName AS service, countIf(StatusCode = 'Error') / count() AS error_ratio\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 10 MINUTE AND SpanKind IN ('Server', 'Consumer') AND NOT startsWith(ServiceName, 'ws-')\nGROUP BY service\nHAVING count() >= 50"
               }
             },
             {
@@ -54,8 +54,110 @@
           },
           "annotations": {
             "summary": "{{ $labels.service }} fails {{ humanizePercentage $values.A.Value }} of its requests",
-            "description": "More than 5% of the server and consumer spans of {{ $labels.service }} ended with an error in the last 10 minutes (at least 50 spans).",
+            "description": "More than 5% of the server and consumer spans of {{ $labels.service }} ended with an error in the last 10 minutes (at least 50 spans). Workspace router spans have their own rules.",
             "dashboard_url": "/d/ws-overview"
+          }
+        },
+        {
+          "uid": "ws-request-errors",
+          "title": "Workspace request error rate",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 300,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT substring(ServiceName, 4) AS workspace, SpanAttributes['server.address'] AS server, countIf(toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) >= 500) / count() AS error_ratio\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 5 MINUTE AND startsWith(ServiceName, 'ws-')\nGROUP BY workspace, server\nHAVING count() >= 20"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        0.1
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "5m",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.server }} in workspace {{ $labels.workspace }} answers {{ humanizePercentage $values.A.Value }} of its requests with 5xx",
+            "description": "More than 10% of the requests the workspace router passed to {{ $labels.server }} in the last 5 minutes got a 5xx response (at least 20 requests), for 5 minutes.",
+            "dashboard_url": "/d/ws-requests?var-workspace={{ $labels.workspace }}&var-server={{ $labels.server }}"
+          }
+        },
+        {
+          "uid": "ws-server-unavailable",
+          "title": "Workspace server repeatedly unavailable",
+          "condition": "B",
+          "data": [
+            {
+              "refId": "A",
+              "relativeTimeRange": {
+                "from": 1800,
+                "to": 0
+              },
+              "datasourceUid": "clickhouse",
+              "model": {
+                "refId": "A",
+                "editorType": "sql",
+                "format": 1,
+                "rawSql": "SELECT substring(ServiceName, 4) AS workspace, SpanAttributes['server.address'] AS server, uniqExact(toStartOfMinute(Timestamp)) AS minutes_down\nFROM otel_traces\nWHERE Timestamp > now() - INTERVAL 30 MINUTE AND startsWith(ServiceName, 'ws-') AND toUInt16OrZero(if(SpanAttributes['http.response.status_code'] != '', SpanAttributes['http.response.status_code'], SpanAttributes['http.status_code'])) IN (502, 503, 504)\nGROUP BY workspace, server"
+              }
+            },
+            {
+              "refId": "B",
+              "datasourceUid": "__expr__",
+              "model": {
+                "refId": "B",
+                "type": "threshold",
+                "expression": "A",
+                "conditions": [
+                  {
+                    "evaluator": {
+                      "type": "gt",
+                      "params": [
+                        2
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "noDataState": "OK",
+          "execErrState": "Error",
+          "for": "0s",
+          "labels": {
+            "severity": "warning"
+          },
+          "annotations": {
+            "summary": "{{ $labels.server }} in workspace {{ $labels.workspace }} was unreachable in {{ $values.A.Value }} of the last 30 minutes",
+            "description": "The workspace router got no answer from {{ $labels.server }} (502, 503 or 504) in at least 3 separate minutes of the last 30. Usually the server process keeps crashing and restarting, for example when it is OOM-killed; check its memory and logs. Resolves 30 minutes after the last such response.",
+            "dashboard_url": "/d/ws-requests?var-workspace={{ $labels.workspace }}&var-server={{ $labels.server }}"
           }
         }
       ]
