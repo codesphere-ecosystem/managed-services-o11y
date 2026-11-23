@@ -1,0 +1,34 @@
+Codesphere Observability Stack
+Copyright 2026 Codesphere SE
+
+This repository holds configuration only and is licensed under Apache-2.0
+(see LICENSE). The landscape runs the third-party software below, unmodified:
+upstream image layers are kept as they are, and only the image config (env,
+command) is adjusted. The Grafana image gets one added layer holding this
+repository's provisioning files and a start script.
+
+OpenTelemetry Collector Contrib 0.165.0
+  License: Apache-2.0
+  Source:  https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/v0.165.0
+           https://github.com/open-telemetry/opentelemetry-collector-releases/tree/v0.165.0
+  Image:   otel/opentelemetry-collector-contrib:0.165.0
+
+Grafana 13.3.1
+  License: AGPL-3.0 (see LICENSES/AGPL-3.0.txt)
+  Source:  https://github.com/grafana/grafana/tree/v13.3.1
+  Image:   grafana/grafana:13.3.1
+
+Grafana ClickHouse data source 4.23.5
+  License: Apache-2.0
+  Source:  https://github.com/grafana/clickhouse-datasource/tree/v4.23.5
+  Installed by Grafana from grafana.com at startup.
+
+The operating system packages in these images come from the upstream images;
+their licenses and sources are listed by the respective upstream projects.
+
+ClickHouse and PostgreSQL run as separate Codesphere managed services and are
+not part of this landscape's images.
+
+ClickHouse® is a registered trademark of ClickHouse, Inc.
+Grafana is a trademark of Raintank, Inc. dba Grafana Labs.
+OpenTelemetry is a trademark of The Linux Foundation.
