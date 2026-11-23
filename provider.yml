@@ -54,5 +54,4 @@ plans: []
 versions:
   0.1.0:
     artifactTag: 0.1.0
-    appVersion: Grafana 13.2.6, OpenTelemetry Collector 0.165.0
-    description: First static build.
+    description: Initial preview
