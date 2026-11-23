@@ -44,10 +44,10 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse"
         },
-        "definition": "SELECT service FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider IN (${provider:singlequote}) OR provider = '' ORDER BY name, service",
+        "definition": "SELECT service, if(name != '', name, service) FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider IN (${provider:singlequote}) OR provider = '' ORDER BY name, service",
         "query": {
           "editorType": "sql",
-          "rawSql": "SELECT service FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider IN (${provider:singlequote}) OR provider = '' ORDER BY name, service"
+          "rawSql": "SELECT service, if(name != '', name, service) FROM (SELECT LogAttributes['targetId'] AS service,\n    argMaxIf(LogAttributes['provider'], Timestamp, LogAttributes['provider'] != '') AS provider,\n    argMaxIf(LogAttributes['name'], Timestamp, LogAttributes['name'] != '') AS name\n  FROM otel_logs WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != ''\n  GROUP BY service) WHERE provider IN (${provider:singlequote}) OR provider = '' ORDER BY name, service"
         },
         "refresh": 2,
         "sort": 0,
@@ -333,7 +333,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Service"
+              "options": "Service ID"
             },
             "properties": [
               {
@@ -375,7 +375,18 @@
         "w": 24,
         "h": 9
       },
-      "id": 2
+      "id": 2,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Service": "Service ID",
+              "Name": "Service name"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
@@ -648,7 +659,18 @@
         "w": 24,
         "h": 14
       },
-      "id": 7
+      "id": 7,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Service": "Service ID",
+              "Name": "Service name"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
