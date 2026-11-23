@@ -24,10 +24,10 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse"
         },
-        "definition": "SELECT DISTINCT Attributes['managed-services.codesphere.com/id'] FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND Attributes['managed-services.codesphere.com/id'] != '' ORDER BY 1",
+        "definition": "SELECT Attributes['managed-services.codesphere.com/id'] AS service, if(argMaxIf(Attributes['managed-services.codesphere.com/name'], TimeUnix, Attributes['managed-services.codesphere.com/name'] != '') AS service_name != '', service_name, service)\nFROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service != ''\nGROUP BY service ORDER BY service_name, service",
         "query": {
           "editorType": "sql",
-          "rawSql": "SELECT DISTINCT Attributes['managed-services.codesphere.com/id'] FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND Attributes['managed-services.codesphere.com/id'] != '' ORDER BY 1"
+          "rawSql": "SELECT Attributes['managed-services.codesphere.com/id'] AS service, if(argMaxIf(Attributes['managed-services.codesphere.com/name'], TimeUnix, Attributes['managed-services.codesphere.com/name'] != '') AS service_name != '', service_name, service)\nFROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service != ''\nGROUP BY service ORDER BY service_name, service"
         },
         "refresh": 2,
         "sort": 0,
@@ -81,7 +81,7 @@
           },
           "editorType": "sql",
           "format": 1,
-          "rawSql": "SELECT\n  up.service AS Service,\n  names.v AS Name,\n  up.v AS Up,\n  up.pods AS Instances,\n  version.v AS Version,\n  conn.v AS Connections,\n  maxconn.v AS `Max connections`,\n  size.v AS `Database size`,\n  lag.v AS `Replication lag`,\n  errors.v AS `Exporter errors`\nFROM (SELECT service, max(if(last > now() - INTERVAL 10 MINUTE, v, 0)) AS v, countIf(last > now() - INTERVAL 10 MINUTE) AS pods FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v, max(TimeUnix) AS last\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  GROUP BY service, series) GROUP BY service) AS up\nLEFT JOIN (SELECT Attributes['managed-services.codesphere.com/id'] AS service, argMax(Attributes['full'], TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_postgres_version'\n  GROUP BY service) AS version USING service\nLEFT JOIN (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_backends_total'\n  GROUP BY service, series) GROUP BY service) AS conn USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_settings_setting' AND Attributes['name'] = 'max_connections'\n  GROUP BY service, series) GROUP BY service) AS maxconn USING service\nLEFT JOIN (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_database_size_bytes' AND Attributes['datname'] NOT IN ('template0', 'template1')\n  GROUP BY service, series) GROUP BY service) AS size USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_replication_lag'\n  GROUP BY service, series) GROUP BY service) AS lag USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_last_collection_error'\n  GROUP BY service, series) GROUP BY service) AS errors USING service\nLEFT JOIN (SELECT LogAttributes['targetId'] AS service, argMax(LogAttributes['name'], Timestamp) AS v\n  FROM otel_logs\n  WHERE Timestamp > now() - INTERVAL 30 DAY AND ServiceName = 'marketplace' AND LogAttributes['targetId'] != '' AND LogAttributes['name'] != ''\n  GROUP BY service) AS names USING service\nWHERE up.service IN (${service:singlequote})\nORDER BY Service\nSETTINGS join_use_nulls = 1"
+          "rawSql": "SELECT\n  up.service AS Service,\n  names.v AS Name,\n  up.v AS Up,\n  up.pods AS Instances,\n  version.v AS Version,\n  conn.v AS Connections,\n  maxconn.v AS `Max connections`,\n  size.v AS `Database size`,\n  lag.v AS `Replication lag`,\n  errors.v AS `Exporter errors`\nFROM (SELECT service, max(if(last > now() - INTERVAL 10 MINUTE, v, 0)) AS v, countIf(last > now() - INTERVAL 10 MINUTE) AS pods FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v, max(TimeUnix) AS last\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  GROUP BY service, series) GROUP BY service) AS up\nLEFT JOIN (SELECT Attributes['managed-services.codesphere.com/id'] AS service, argMax(Attributes['full'], TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_postgres_version'\n  GROUP BY service) AS version USING service\nLEFT JOIN (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_backends_total'\n  GROUP BY service, series) GROUP BY service) AS conn USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_settings_setting' AND Attributes['name'] = 'max_connections'\n  GROUP BY service, series) GROUP BY service) AS maxconn USING service\nLEFT JOIN (SELECT service, sum(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_database_size_bytes' AND Attributes['datname'] NOT IN ('template0', 'template1')\n  GROUP BY service, series) GROUP BY service) AS size USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_pg_replication_lag'\n  GROUP BY service, series) GROUP BY service) AS lag USING service\nLEFT JOIN (SELECT service, max(v) AS v FROM (SELECT Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND MetricName = 'cnpg_collector_last_collection_error'\n  GROUP BY service, series) GROUP BY service) AS errors USING service\nLEFT JOIN (SELECT Attributes['managed-services.codesphere.com/id'] AS service, argMaxIf(Attributes['managed-services.codesphere.com/name'], TimeUnix, Attributes['managed-services.codesphere.com/name'] != '') AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  GROUP BY service) AS names USING service\nWHERE up.service IN (${service:singlequote})\nORDER BY Service\nSETTINGS join_use_nulls = 1"
         }
       ],
       "fieldConfig": {
@@ -178,7 +178,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "Service"
+              "options": "Service ID"
             },
             "properties": [
               {
@@ -201,7 +201,18 @@
         "w": 24,
         "h": 7
       },
-      "id": 2
+      "id": 2,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Service": "Service ID",
+              "Name": "Service name"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
@@ -232,7 +243,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_total' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_total' AND service_id IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -265,7 +276,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_waiting_total' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_waiting_total' AND service_id IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -299,7 +310,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_max_tx_duration_seconds' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, max(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_backends_max_tx_duration_seconds' AND service_id IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -333,7 +344,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_xact_commit' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_xact_commit' AND service_id IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -367,7 +378,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_xact_rollback' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_xact_rollback' AND service_id IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -401,7 +412,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_deadlocks' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_deadlocks' AND service_id IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -435,7 +446,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sumIf(d, kind = 'hit') / sum(d) AS value FROM (\n  SELECT time, service, kind, greatest(v - lagInFrame(v, 1, v) OVER (PARTITION BY service, series, kind ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), 0) AS d\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series,\n      if(MetricName = 'cnpg_pg_stat_database_blks_hit', 'hit', 'read') AS kind, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName IN ('cnpg_pg_stat_database_blks_hit', 'cnpg_pg_stat_database_blks_read')\n      AND service IN (${service:singlequote})\n    GROUP BY time, service, series, kind\n  )\n) GROUP BY time, service HAVING sum(d) > 0 ORDER BY time"
+          "rawSql": "SELECT time, service, sumIf(d, kind = 'hit') / sum(d) AS value FROM (\n  SELECT time, service, kind, greatest(v - lagInFrame(v, 1, v) OVER (PARTITION BY service, series, kind ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW), 0) AS d\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series,\n      if(MetricName = 'cnpg_pg_stat_database_blks_hit', 'hit', 'read') AS kind, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName IN ('cnpg_pg_stat_database_blks_hit', 'cnpg_pg_stat_database_blks_read')\n      AND service_id IN (${service:singlequote})\n    GROUP BY time, service, series, kind\n  )\n) GROUP BY time, service HAVING sum(d) > 0 ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -483,7 +494,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_database_size_bytes' AND service IN (${service:singlequote}) AND Attributes['datname'] NOT IN ('template0', 'template1')\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_database_size_bytes' AND service_id IN (${service:singlequote}) AND Attributes['datname'] NOT IN ('template0', 'template1')\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -517,7 +528,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_temp_bytes' AND service IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, sum(greatest(v - prev, 0)) / $__interval_s AS value FROM (\n  SELECT time, service, series, v, lagInFrame(v, 1, v) OVER (PARTITION BY service, series ORDER BY time ROWS BETWEEN 1 PRECEDING AND CURRENT ROW) AS prev\n  FROM (\n    SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, max(Value) AS v\n    FROM otel_metrics_gauge\n    WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_database_temp_bytes' AND service_id IN (${service:singlequote})\n    GROUP BY time, service, series\n  )\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -552,7 +563,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_pg_wal' AND service IN (${service:singlequote}) AND Attributes['value'] = 'count'\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_pg_wal' AND service_id IN (${service:singlequote}) AND Attributes['value'] = 'count'\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -585,7 +596,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_replication_lag' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_replication_lag' AND service_id IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -619,7 +630,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, max(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_database_xid_age' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, max(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, max(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_database_xid_age' AND service_id IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -653,7 +664,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT time, service, min(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service, toString(Attributes) AS series, min(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_archiver_seconds_since_last_archival' AND service IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
+          "rawSql": "SELECT time, service, min(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, Attributes['managed-services.codesphere.com/id'] AS service_id, if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id) AS service, toString(Attributes) AS series, min(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_pg_stat_archiver_seconds_since_last_archival' AND service_id IN (${service:singlequote})\n  GROUP BY time, service, series\n) GROUP BY time, service ORDER BY time"
         }
       ],
       "fieldConfig": {
@@ -708,7 +719,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "WITH pods AS (\n  SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service IN (${service:singlequote})\n)\nSELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'k8s.pod.cpu.usage' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod\n) AS m JOIN pods USING pod\nGROUP BY time, service ORDER BY time"
+          "rawSql": "WITH pods AS (\n  SELECT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service_id, argMax(if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id), TimeUnix) AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service_id IN (${service:singlequote})\n  GROUP BY pod, service_id\n)\nSELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'k8s.pod.cpu.usage' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod\n) AS m JOIN pods USING pod\nGROUP BY time, service ORDER BY time"
         }
       ],
       "description": "Kubelet stats of the rg namespace, collected by the team collector, joined to services by pod. Cores, summed over all instances.",
@@ -743,7 +754,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "WITH pods AS (\n  SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service IN (${service:singlequote})\n)\nSELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'k8s.pod.memory.working_set' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod\n) AS m JOIN pods USING pod\nGROUP BY time, service ORDER BY time"
+          "rawSql": "WITH pods AS (\n  SELECT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service_id, argMax(if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id), TimeUnix) AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service_id IN (${service:singlequote})\n  GROUP BY pod, service_id\n)\nSELECT time, service, sum(v) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod, avg(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'k8s.pod.memory.working_set' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod\n) AS m JOIN pods USING pod\nGROUP BY time, service ORDER BY time"
         }
       ],
       "description": "Kubelet stats of the rg namespace, collected by the team collector, joined to services by pod. Working set, summed over all instances.",
@@ -802,7 +813,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "WITH pods AS (\n  SELECT DISTINCT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service IN (${service:singlequote})\n)\nSELECT time, concat(service, ' ', pvc) AS volume, max(used) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod,\n    ResourceAttributes['k8s.persistentvolumeclaim.name'] AS pvc,\n    1 - avgIf(Value, MetricName = 'k8s.volume.available') / avgIf(Value, MetricName = 'k8s.volume.capacity') AS used\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName IN ('k8s.volume.available', 'k8s.volume.capacity') AND pvc != '' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod, pvc\n) AS m JOIN pods USING pod\nWHERE isFinite(used)\nGROUP BY time, volume ORDER BY time"
+          "rawSql": "WITH pods AS (\n  SELECT Attributes['pod'] AS pod, Attributes['managed-services.codesphere.com/id'] AS service_id, argMax(if(Attributes['managed-services.codesphere.com/name'] != '', Attributes['managed-services.codesphere.com/name'], service_id), TimeUnix) AS service\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up' AND service_id IN (${service:singlequote})\n  GROUP BY pod, service_id\n)\nSELECT time, concat(service, ' ', pvc) AS volume, max(used) AS value FROM (\n  SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, ResourceAttributes['k8s.pod.name'] AS pod,\n    ResourceAttributes['k8s.persistentvolumeclaim.name'] AS pvc,\n    1 - avgIf(Value, MetricName = 'k8s.volume.available') / avgIf(Value, MetricName = 'k8s.volume.capacity') AS used\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND MetricName IN ('k8s.volume.available', 'k8s.volume.capacity') AND pvc != '' AND pod IN (SELECT pod FROM pods)\n  GROUP BY time, pod, pvc\n) AS m JOIN pods USING pod\nWHERE isFinite(used)\nGROUP BY time, volume ORDER BY time"
         }
       ],
       "description": "Kubelet stats of the rg namespace, collected by the team collector, joined to services by pod. Used share of each volume (data and WAL). Postgres stops when a volume is full.",
@@ -850,7 +861,7 @@
           },
           "editorType": "sql",
           "format": 0,
-          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, concat(Attributes['targetId'], ' ', Attributes['resource']) AS resource, max(Value) AS value\nFROM otel_metrics_gauge\nWHERE $__timeFilter(TimeUnix) AND MetricName = 'codesphere.managed_service.utilization.ratio' AND Attributes['targetId'] IN (${service:singlequote})\nGROUP BY time, resource ORDER BY time"
+          "rawSql": "SELECT toStartOfInterval(TimeUnix, INTERVAL $__interval_s second) AS time, concat(if(Attributes['name'] != '', Attributes['name'], Attributes['targetId']), ' ', Attributes['resource']) AS resource, max(Value) AS value\nFROM otel_metrics_gauge\nWHERE $__timeFilter(TimeUnix) AND MetricName = 'codesphere.managed_service.utilization.ratio' AND Attributes['targetId'] IN (${service:singlequote})\nGROUP BY time, resource ORDER BY time"
         }
       ],
       "description": "What the provider reports to the marketplace for each plan resource, as the marketplace exports it (codesphere.managed_service.utilization). Value divided by the plan value.",
@@ -943,7 +954,18 @@
         "w": 12,
         "h": 8
       },
-      "id": 24
+      "id": 24,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Service": "Service ID",
+              "Name": "Service name"
+            }
+          }
+        }
+      ]
     }
   ]
 }
