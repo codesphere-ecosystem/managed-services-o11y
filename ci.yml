@@ -94,7 +94,6 @@ run:
               receivers: [otlp]
               processors: [memory_limiter]
               exporters: [clickhouse]
-    # Tag only: the static build export can't mirror an image pinned by digest.
     image: otel/opentelemetry-collector-contrib:0.165.0
     command:
       - --config=env:OTEL_COLLECTOR_CONFIG
@@ -122,7 +121,7 @@ run:
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
     runAsUser: 472
-    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
+    image: grafana/grafana:13.3.1
     # The workspace has the provisioning at this path, and a static build
     # bakes it there.
     build:
