@@ -13,14 +13,14 @@ OpenTelemetry Collector Contrib 0.165.0
            https://github.com/open-telemetry/opentelemetry-collector-releases/tree/v0.165.0
   Image:   otel/opentelemetry-collector-contrib:0.165.0
 
-Grafana 13.2.6
+Grafana 13.3.1
   License: AGPL-3.0 (see LICENSES/AGPL-3.0.txt)
-  Source:  https://github.com/grafana/grafana/tree/v13.2.6
-  Image:   grafana/grafana:13.2.6
+  Source:  https://github.com/grafana/grafana/tree/v13.3.1
+  Image:   grafana/grafana:13.3.1
 
-Grafana ClickHouse data source 4.23.4
+Grafana ClickHouse data source 4.23.5
   License: Apache-2.0
-  Source:  https://github.com/grafana/clickhouse-datasource/tree/v4.23.4
+  Source:  https://github.com/grafana/clickhouse-datasource/tree/v4.23.5
   Installed by Grafana from grafana.com at startup.
 
 The operating system packages in these images come from the upstream images;
