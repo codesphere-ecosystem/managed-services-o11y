@@ -122,11 +122,13 @@ run:
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
     runAsUser: 472
     image: grafana/grafana:13.3.1
-    # The workspace has the provisioning at this path, and a static build
-    # bakes it there.
+    # Same paths as in the workspace. NOTICE and the AGPL text ship with the
+    # image for Grafana's license.
     build:
       copy:
         - grafana/provisioning:grafana/provisioning
+        - NOTICE:NOTICE
+        - LICENSES:LICENSES
     steps:
       - command: /run.sh
   clickhouse:
