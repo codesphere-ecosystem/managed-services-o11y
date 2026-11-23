@@ -2,7 +2,7 @@ name: o11y
 schemaVersion: v1beta1
 backend:
   landscape:
-    gitUrl: https://github.com/codesphere-cloud/managed-services-o11y
+    staticBuildArtifact: ghcr.io/codesphere-ecosystem/managed-services-o11y
 author: Codesphere
 category: Other
 description: Logs, metrics and traces of your workspaces and services in one
@@ -52,8 +52,7 @@ secretsSchema:
 resourceParameters: {}
 plans: []
 versions:
-  0.0.1:
-    ciProfile: __cs_default__
-    gitRef: main
-    appVersion: unstable
-    description: ""
+  0.1.0:
+    artifactTag: 0.1.0
+    appVersion: Grafana 13.2.6, OpenTelemetry Collector 0.165.0
+    description: First static build.
