@@ -20,7 +20,7 @@ app ──OTLP/HTTP──▶ gateway /otlp ──▶ otel-collector ──native
 
 1. Create a workspace from this repo.
 2. Sync the landscape and fill the vault secrets: `clickhousePassword` (8–32 alphanumeric), `otlpToken`, `grafanaAdminPassword`, `grafanaDbPassword`, `grafanaDbSuperuserPassword`.
-3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** (all providers), one folder per provider (**Managed services · Postgres**) and **Workspaces**.
+3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** (all providers), one folder per provider (**Managed services · Postgres**), **Workspaces** and **Infrastructure**.
 4. Point the team's OTLP export (team settings) at `https://<dev domain>/otlp` with the `otlpToken`, so the team collector forwards the resource group's telemetry here.
 
 Plans `201` (Micro, `otel-collector`), `301` (Boost, `grafana`) and `8` (router) in [`ci.yml`](ci.yml); plan IDs differ between installations, so pick plans that exist on the target cluster.
@@ -70,7 +70,8 @@ Provisioned read-only from [`grafana/provisioning/`](grafana/provisioning/): one
   - *Workspace logs*: pipeline output by server and stage.
   - Alert rules ([`workspaces.json`](grafana/provisioning/alerting/workspaces.json)): from the router spans, over 10% 5xx responses per workspace server for 5 minutes, and a server the router couldn't reach (502, 503, 504) in 3 or more minutes of the last 30, which is how a process that keeps crashing, for example OOM-killed, shows; over 5% failed server spans per service that sends its own traces.
     Workspaces only send router spans with tracing on, and nothing reports an OOM kill as such yet.
-
+- **Infrastructure**
+  - *Service Infrastructure Metrics*: CPU, memory, network, disk I/O, requests, limits and volumes per pod of the resource group. 
 A new provider gets a `dashboards/managed-services/<provider>/` directory, a provider entry in [`folders.yaml`](grafana/provisioning/dashboards/folders.yaml) with folder `Managed services · <Provider>`, and an `alerting/managed-services-<provider>.json` with the same folder title.
 
 No contact point is provisioned; add one in Grafana to get notified. Grafana keeps the **Codesphere** folder of earlier versions after an upgrade, empty; delete it by hand.

@@ -1,0 +1,676 @@
+{
+  "uid": "codesphere-service-infrastructure",
+  "title": "Service Infrastructure Metrics",
+  "description": "CPU, memory, network, disk I/O, requests, limits and volumes of the pods in the team's rg namespace, federated by the team collector from the platform Prometheus (cadvisor, kubelet, kube-state-metrics).",
+  "tags": [
+    "codesphere",
+    "infrastructure"
+  ],
+  "schemaVersion": 39,
+  "editable": false,
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "templating": {
+    "list": [
+      {
+        "name": "pod",
+        "label": "Pod",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-clickhouse-datasource",
+          "uid": "clickhouse"
+        },
+        "definition": "SELECT DISTINCT Attributes['pod'] FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND MetricName = 'container_memory_working_set_bytes' AND Attributes['pod'] != '' ORDER BY 1",
+        "query": {
+          "editorType": "sql",
+          "rawSql": "SELECT DISTINCT Attributes['pod'] FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND MetricName = 'container_memory_working_set_bytes' AND Attributes['pod'] != '' ORDER BY 1"
+        },
+        "refresh": 2,
+        "sort": 1,
+        "multi": true,
+        "includeAll": true,
+        "allValue": null,
+        "current": {},
+        "options": [],
+        "hide": 0
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Pods",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 2,
+      "type": "table",
+      "title": "Current usage",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 1,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cores"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU request"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cores"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "CPU limit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "cores"
+              },
+              {
+                "id": "decimals",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory (working set)"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory request"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Memory limit"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Last seen"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dateTimeFromNow"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT\n  pod AS Pod,\n  anyIf(v, m = 'cpu') AS CPU,\n  anyIf(v, m = 'cpu_request') AS `CPU request`,\n  anyIf(v, m = 'cpu_limit') AS `CPU limit`,\n  anyIf(v, m = 'memory') AS `Memory (working set)`,\n  anyIf(v, m = 'memory_request') AS `Memory request`,\n  anyIf(v, m = 'memory_limit') AS `Memory limit`,\n  max(at) AS `Last seen`\nFROM (\n  -- cpu: average rate over the window, summed over the containers\n  SELECT pod, 'cpu' AS m, sum(r) AS v, max(at) AS at\n  FROM (\n    SELECT Attributes['pod'] AS pod, Attributes['container'] AS container,\n           (max(Value) - min(Value)) / nullIf(dateDiff('second', min(TimeUnix), max(TimeUnix)), 0) AS r,\n           max(TimeUnix) AS at\n    FROM otel_metrics_gauge\n    WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND ScopeName LIKE '%prometheusreceiver%' AND Attributes['pod'] IN (${pod:singlequote})\n      AND MetricName = 'container_cpu_usage_seconds_total' AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD')\n    GROUP BY pod, container\n  )\n  GROUP BY pod\n  UNION ALL\n  -- memory: latest scrape, summed over the containers\n  SELECT pod, 'memory' AS m, sum(v) AS v, max(at) AS at\n  FROM (\n    SELECT Attributes['pod'] AS pod, Attributes['container'] AS container,\n           argMax(Value, TimeUnix) AS v, max(TimeUnix) AS at\n    FROM otel_metrics_gauge\n    WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND ScopeName LIKE '%prometheusreceiver%' AND Attributes['pod'] IN (${pod:singlequote})\n      AND MetricName = 'container_memory_working_set_bytes' AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD')\n    GROUP BY pod, container\n  )\n  GROUP BY pod\n  UNION ALL\n  -- requests and limits (kube-state-metrics), summed over the containers\n  SELECT pod, concat(Attributes_resource, '_', kind) AS m, sum(v) AS v, max(at) AS at\n  FROM (\n    SELECT Attributes['pod'] AS pod, Attributes['container'] AS container, Attributes['resource'] AS Attributes_resource,\n           if(MetricName = 'kube_pod_container_resource_requests', 'request', 'limit') AS kind,\n           argMax(Value, TimeUnix) AS v, max(TimeUnix) AS at\n    FROM otel_metrics_gauge\n    WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND ScopeName LIKE '%prometheusreceiver%' AND Attributes['pod'] IN (${pod:singlequote})\n      AND MetricName IN ('kube_pod_container_resource_requests', 'kube_pod_container_resource_limits')\n      AND Attributes['resource'] IN ('cpu', 'memory')\n    GROUP BY pod, container, Attributes_resource, kind\n  )\n  GROUP BY pod, m\n)\nGROUP BY pod\nORDER BY pod"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Pod CPU",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "interval": "1m",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "min": 0,
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(r) AS value\nFROM (\n  SELECT $__timeInterval(t) AS time, series, key, avg(rate) AS r\n  FROM (\n    SELECT t, series, key,\n           (v - lagInFrame(v) OVER w)\n             / nullIf(dateDiff('millisecond', lagInFrame(t) OVER w, t) / 1000, 0) AS rate,\n           row_number() OVER w AS rn\n    FROM (\n      SELECT TimeUnix AS t, Value AS v, Attributes['pod'] AS series, concat(Attributes['pod'], '/', Attributes['container']) AS key\n      FROM otel_metrics_gauge\n      WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND MetricName = 'container_cpu_usage_seconds_total'\n        AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD') AND Attributes['pod'] IN (${pod:singlequote})\n    )\n    WINDOW w AS (PARTITION BY key ORDER BY t\n                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n  )\n  -- first sample has no predecessor; negative rate = counter reset\n  WHERE rn > 1 AND rate >= 0\n  GROUP BY time, series, key\n)\nGROUP BY time, series\nORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Pod memory (working set)",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "interval": "1m",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT $__timeInterval(t) AS time, series, avg(v) AS value\nFROM (\n  SELECT TimeUnix AS t, Attributes['pod'] AS series, sum(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND MetricName = 'container_memory_working_set_bytes'\n    AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD') AND Attributes['pod'] IN (${pod:singlequote})\n  GROUP BY t, series\n)\nGROUP BY time, series\nORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Pod network",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "interval": "1m",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(r) AS value\nFROM (\n  -- network is reported per pod, once per interface; the max over the\n  -- container label keeps a pod's traffic from being counted twice\n  SELECT time, series, iface, max(r) AS r\n  FROM (\n    SELECT $__timeInterval(t) AS time, series, iface, key, avg(rate) AS r\n    FROM (\n      SELECT t, series, iface, key,\n             (v - lagInFrame(v) OVER w)\n               / nullIf(dateDiff('millisecond', lagInFrame(t) OVER w, t) / 1000, 0) AS rate,\n             row_number() OVER w AS rn\n      FROM (\n        SELECT TimeUnix AS t, Value AS v,\n               concat(Attributes['pod'], ' ', if(MetricName LIKE '%receive%', 'receive', 'transmit')) AS series,\n               Attributes['interface'] AS iface,\n               concat(MetricName, '/', Attributes['pod'], '/', Attributes['container'], '/', Attributes['interface']) AS key\n        FROM otel_metrics_gauge\n        WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND Attributes['metrics_path'] = '/metrics/cadvisor'\n          AND MetricName IN ('container_network_receive_bytes_total', 'container_network_transmit_bytes_total')\n          AND Attributes['pod'] IN (${pod:singlequote})\n      )\n      WINDOW w AS (PARTITION BY key ORDER BY t\n                   ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n    )\n    WHERE rn > 1 AND rate >= 0\n    GROUP BY time, series, iface, key\n  )\n  GROUP BY time, series, iface\n)\nGROUP BY time, series\nORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Pod disk I/O",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "interval": "1m",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "min": 0,
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(r) AS value\nFROM (\n  SELECT $__timeInterval(t) AS time, series, key, avg(rate) AS r\n  FROM (\n    SELECT t, series, key,\n           (v - lagInFrame(v) OVER w)\n             / nullIf(dateDiff('millisecond', lagInFrame(t) OVER w, t) / 1000, 0) AS rate,\n           row_number() OVER w AS rn\n    FROM (\n      SELECT TimeUnix AS t, Value AS v,\n             concat(Attributes['pod'], ' ', if(MetricName LIKE '%reads%', 'read', 'write')) AS series,\n             concat(MetricName, '/', Attributes['pod'], '/', Attributes['container'], '/', Attributes['device']) AS key\n      FROM otel_metrics_gauge\n      WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%'\n        AND MetricName IN ('container_fs_reads_bytes_total', 'container_fs_writes_bytes_total')\n        AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD') AND Attributes['pod'] IN (${pod:singlequote})\n    )\n    WINDOW w AS (PARTITION BY key ORDER BY t\n                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n  )\n  -- first sample has no predecessor; negative rate = counter reset\n  WHERE rn > 1 AND rate >= 0\n  GROUP BY time, series, key\n)\nGROUP BY time, series\nORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "row",
+      "title": "Containers",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Container CPU",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "interval": "1m",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "cores",
+          "min": 0,
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT time, series, sum(r) AS value\nFROM (\n  SELECT $__timeInterval(t) AS time, series, key, avg(rate) AS r\n  FROM (\n    SELECT t, series, key,\n           (v - lagInFrame(v) OVER w)\n             / nullIf(dateDiff('millisecond', lagInFrame(t) OVER w, t) / 1000, 0) AS rate,\n           row_number() OVER w AS rn\n    FROM (\n      SELECT TimeUnix AS t, Value AS v, concat(Attributes['pod'], '/', Attributes['container']) AS series, concat(Attributes['pod'], '/', Attributes['container']) AS key\n      FROM otel_metrics_gauge\n      WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND MetricName = 'container_cpu_usage_seconds_total'\n        AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD') AND Attributes['pod'] IN (${pod:singlequote})\n    )\n    WINDOW w AS (PARTITION BY key ORDER BY t\n                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)\n  )\n  -- first sample has no predecessor; negative rate = counter reset\n  WHERE rn > 1 AND rate >= 0\n  GROUP BY time, series, key\n)\nGROUP BY time, series\nORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Container memory (working set)",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 25,
+        "w": 12,
+        "h": 8
+      },
+      "interval": "1m",
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "displayName": "${__field.labels.series}",
+          "custom": {
+            "lineWidth": 1,
+            "fillOpacity": 0,
+            "showPoints": "always",
+            "pointSize": 4,
+            "spanNulls": true,
+            "stacking": {
+              "mode": "none"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 0,
+          "rawSql": "SELECT $__timeInterval(t) AS time, series, avg(v) AS value\nFROM (\n  SELECT TimeUnix AS t, concat(Attributes['pod'], '/', Attributes['container']) AS series, sum(Value) AS v\n  FROM otel_metrics_gauge\n  WHERE $__timeFilter(TimeUnix) AND ScopeName LIKE '%prometheusreceiver%' AND MetricName = 'container_memory_working_set_bytes'\n    AND Attributes['metrics_path'] = '/metrics/cadvisor' AND Attributes['image'] != '' AND Attributes['container'] NOT IN ('', 'POD') AND Attributes['pod'] IN (${pod:singlequote})\n  GROUP BY t, series\n)\nGROUP BY time, series\nORDER BY time"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Volumes",
+      "collapsed": false,
+      "gridPos": {
+        "x": 0,
+        "y": 33,
+        "w": 24,
+        "h": 1
+      },
+      "panels": []
+    },
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Persistent volumes",
+      "datasource": {
+        "type": "grafana-clickhouse-datasource",
+        "uid": "clickhouse"
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 34,
+        "w": 24,
+        "h": 7
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Capacity"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Used %"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percentunit"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "mode": "basic"
+                }
+              },
+              {
+                "id": "max",
+                "value": 1
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green",
+                      "value": null
+                    },
+                    {
+                      "color": "orange",
+                      "value": 0.8
+                    },
+                    {
+                      "color": "red",
+                      "value": 0.9
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-clickhouse-datasource",
+            "uid": "clickhouse"
+          },
+          "editorType": "sql",
+          "format": 1,
+          "rawSql": "SELECT\n  claim AS Volume,\n  anyIf(v, MetricName = 'kubelet_volume_stats_capacity_bytes') AS Capacity,\n  anyIf(v, MetricName = 'kubelet_volume_stats_used_bytes') AS Used,\n  Used / nullIf(Capacity, 0) AS `Used %`\nFROM (\n  -- the volume series carry the claim but no pod\n  SELECT Attributes['persistentvolumeclaim'] AS claim, MetricName, argMax(Value, TimeUnix) AS v\n  FROM otel_metrics_gauge\n  WHERE TimeUnix > now() - INTERVAL 10 MINUTE AND ScopeName LIKE '%prometheusreceiver%'\n    AND MetricName IN ('kubelet_volume_stats_capacity_bytes', 'kubelet_volume_stats_used_bytes')\n  GROUP BY claim, MetricName\n)\nGROUP BY claim\nORDER BY `Used %` DESC"
+        }
+      ]
+    }
+  ]
+}
