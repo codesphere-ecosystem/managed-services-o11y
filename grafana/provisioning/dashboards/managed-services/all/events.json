@@ -333,7 +333,7 @@
           {
             "matcher": {
               "id": "byName",
-              "options": "ServiceId"
+              "options": "Service ID"
             },
             "properties": [
               {
@@ -381,8 +381,8 @@
           "id": "organize",
           "options": {
             "renameByName": {
-              "Service": "ServiceId",
-              "Name": "ServiceName"
+              "Service": "Service ID",
+              "Name": "Service name"
             }
           }
         }
@@ -665,8 +665,8 @@
           "id": "organize",
           "options": {
             "renameByName": {
-              "Service": "ServiceId",
-              "Name": "ServiceName"
+              "Service": "Service ID",
+              "Name": "Service name"
             }
           }
         }
