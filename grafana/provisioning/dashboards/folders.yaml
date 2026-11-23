@@ -1,32 +1,28 @@
 apiVersion: 1
 
-# One folder for all managed services, one per provider, one for workspaces and one for the
-# infrastructure metrics, each with its own provider. Grafana's file
-# provisioning can't nest folders, so the managed-service folders share a "Managed services · " prefix.
-# The Postgres alert rules go into the Postgres folder too, see ../alerting/.
+# File provisioning can't nest folders, hence the "Managed services · " prefix.
 providers:
-  # Across providers, from the marketplace's events and utilization metrics.
   - name: managed-services
     folder: Managed services
     type: file
     allowUiUpdates: false
     options:
-      path: /etc/grafana/provisioning/dashboards/managed-services/all
+      path: ${GF_PATHS_PROVISIONING}/dashboards/managed-services/all
   - name: managed-services-postgres
     folder: Managed services · Postgres
     type: file
     allowUiUpdates: false
     options:
-      path: /etc/grafana/provisioning/dashboards/managed-services/postgres
+      path: ${GF_PATHS_PROVISIONING}/dashboards/managed-services/postgres
   - name: workspaces
     folder: Workspaces
     type: file
     allowUiUpdates: false
     options:
-      path: /etc/grafana/provisioning/dashboards/workspaces
+      path: ${GF_PATHS_PROVISIONING}/dashboards/workspaces
   - name: infrastructure
     folder: Infrastructure
     type: file
     allowUiUpdates: false
     options:
-      path: /etc/grafana/provisioning/dashboards/infrastructure
+      path: ${GF_PATHS_PROVISIONING}/dashboards/infrastructure
