@@ -107,7 +107,6 @@ run:
     env:
       GF_SERVER_ROOT_URL: https://${{ workspace.devDomain }}/
       GF_SECURITY_ADMIN_USER: admin
-      GF_PATHS_PROVISIONING: /home/user/app/grafana/provisioning
       GF_SECURITY_ADMIN_PASSWORD: ${{ vault.grafanaAdminPassword }}
       GF_PLUGINS_PREINSTALL_SYNC: grafana-clickhouse-datasource@4.23.5
       GF_DATABASE_TYPE: postgres
@@ -122,13 +121,14 @@ run:
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
     runAsUser: 472
     image: grafana/grafana:13.3.1
-    # Same paths as in the workspace. NOTICE and the AGPL text ship with the
-    # image for Grafana's license.
+    # Outside /home/user/app: every server mounts the workspace volume there,
+    # which hides baked files. NOTICE and the AGPL text ship with the image
+    # for Grafana's license.
     build:
       copy:
-        - grafana/provisioning:grafana/provisioning
-        - NOTICE:NOTICE
-        - LICENSES:LICENSES
+        - grafana/provisioning:/etc/grafana/provisioning
+        - NOTICE:/usr/share/licenses/codesphere-observability-stack/NOTICE
+        - LICENSES:/usr/share/licenses/codesphere-observability-stack/LICENSES
     steps:
       - command: /run.sh
   clickhouse:
