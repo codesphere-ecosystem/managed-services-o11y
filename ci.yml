@@ -36,13 +36,67 @@ run:
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
       CLICKHOUSE_TABLE_ENGINE: MergeTree
       TELEMETRY_TTL: 168h
-    volumeMounts:
-      - name: _workspace
-        mountPath: /etc/otelcol-contrib/config.yaml
-        workspacePath: otel/config.yaml
+      # The image has no shell, so a static build can't bake a config file
+      # into it; the collector reads its config from this variable instead.
+      OTEL_COLLECTOR_CONFIG: |
+        extensions:
+          health_check:
+            endpoint: 0.0.0.0:13133
+          bearertokenauth:
+            token: ${env:OTLP_TOKEN}
+
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+                auth:
+                  authenticator: bearertokenauth
+              http:
+                endpoint: 0.0.0.0:4318
+                auth:
+                  authenticator: bearertokenauth
+
+        processors:
+          memory_limiter:
+            check_interval: 1s
+            limit_percentage: 80
+            spike_limit_percentage: 25
+
+        exporters:
+          clickhouse:
+            endpoint: tcp://${env:CLICKHOUSE_HOST}:${env:CLICKHOUSE_PORT}?dial_timeout=10s
+            database: ${env:CLICKHOUSE_DATABASE}
+            username: ${env:CLICKHOUSE_USER}
+            password: ${env:CLICKHOUSE_PASSWORD}
+            ttl: ${env:TELEMETRY_TTL}
+            create_schema: true
+            # MergeTree for 1 instance; ReplicatedMergeTree for 3, where `app` only accepts replicated tables.
+            table_engine:
+              name: ${env:CLICKHOUSE_TABLE_ENGINE}
+            sending_queue:
+              batch:
+                min_size: 5000
+                flush_timeout: 5s
+
+        service:
+          extensions: [health_check, bearertokenauth]
+          pipelines:
+            traces:
+              receivers: [otlp]
+              processors: [memory_limiter]
+              exporters: [clickhouse]
+            logs:
+              receivers: [otlp]
+              processors: [memory_limiter]
+              exporters: [clickhouse]
+            metrics:
+              receivers: [otlp]
+              processors: [memory_limiter]
+              exporters: [clickhouse]
     image: otel/opentelemetry-collector-contrib:0.165.0@sha256:e40d61f10c9a617cca1ffd1be4d7e2b3a4b0f0001798ff07e58cabe82e618cea
     command:
-      - --config=/etc/otelcol-contrib/config.yaml
+      - --config=env:OTEL_COLLECTOR_CONFIG
   grafana:
     healthEndpoint: http://127.0.0.1:3000/api/health
     plan: 301
@@ -53,6 +107,7 @@ run:
     env:
       GF_SERVER_ROOT_URL: https://${{ workspace.devDomain }}/
       GF_SECURITY_ADMIN_USER: admin
+      GF_PATHS_PROVISIONING: /home/user/app/grafana/provisioning
       GF_SECURITY_ADMIN_PASSWORD: ${{ vault.grafanaAdminPassword }}
       GF_PLUGINS_PREINSTALL_SYNC: grafana-clickhouse-datasource@4.23.4
       GF_DATABASE_TYPE: postgres
@@ -66,11 +121,14 @@ run:
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
     runAsUser: 472
-    volumeMounts:
-      - name: _workspace
-        mountPath: /etc/grafana/provisioning
-        workspacePath: grafana/provisioning
     image: grafana/grafana:13.2.6@sha256:b21409d7951ddcfd63a4b49083e4ef2cc35bc1437d071813bf82bfb238b00bca
+    # The workspace has the provisioning at this path, and a static build
+    # bakes it there.
+    build:
+      copy:
+        - grafana/provisioning:grafana/provisioning
+    steps:
+      - command: /run.sh
   clickhouse:
     provider:
       name: clickhouse
