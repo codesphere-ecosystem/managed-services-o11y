@@ -45,7 +45,7 @@ run:
       - --config=/etc/otelcol-contrib/config.yaml
   grafana:
     healthEndpoint: http://127.0.0.1:3000/api/health
-    plan: 201
+    plan: 301
     replicas: 1
     network:
       ports:
