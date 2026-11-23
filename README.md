@@ -23,7 +23,7 @@ app ──OTLP/HTTP──▶ gateway /otlp ──▶ otel-collector ──native
 3. Open `https://<dev domain>/` as `admin`. The plugin's dashboards are in the **ClickHouse** folder, ours in **Managed services** (all providers), one folder per provider (**Managed services · Postgres**) and **Workspaces**.
 4. Point the team's OTLP export (team settings) at `https://<dev domain>/otlp` with the `otlpToken`, so the team collector forwards the resource group's telemetry here.
 
-Plans `21` (containers) and `8` (router) in [`ci.yml`](ci.yml) are placeholders; pick plans that exist on the target cluster.
+Plans `201` (Micro, `otel-collector`), `301` (Boost, `grafana`) and `8` (router) in [`ci.yml`](ci.yml); plan IDs differ between installations, so pick plans that exist on the target cluster.
 
 For a 3-instance ClickHouse, set `CLICKHOUSE_TABLE_ENGINE: ReplicatedMergeTree` on `otel-collector` and leave `cluster_name` unset.
 
