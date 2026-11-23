@@ -24,10 +24,10 @@
           "type": "grafana-clickhouse-datasource",
           "uid": "clickhouse"
         },
-        "definition": "SELECT DISTINCT service FROM (\n  SELECT Attributes['managed-services.codesphere.com/id'] AS service FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  UNION ALL\n  SELECT LogAttributes['targetId'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish')\n  UNION ALL\n  SELECT LogAttributes['managed-services.codesphere.com/id'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['container'] = 'postgres'\n) WHERE service != '' ORDER BY service",
+        "definition": "SELECT service, if(argMaxIf(name, time, name != '') AS service_name != '', concat(service_name, ' (', service, ')'), service) FROM (\n  SELECT Attributes['managed-services.codesphere.com/id'] AS service, Attributes['managed-services.codesphere.com/name'] AS name, TimeUnix AS time FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  UNION ALL\n  SELECT LogAttributes['targetId'], '', Timestamp FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish')\n  UNION ALL\n  SELECT LogAttributes['managed-services.codesphere.com/id'], LogAttributes['managed-services.codesphere.com/name'], Timestamp FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['container'] = 'postgres'\n) WHERE service != '' GROUP BY service ORDER BY service_name, service",
         "query": {
           "editorType": "sql",
-          "rawSql": "SELECT DISTINCT service FROM (\n  SELECT Attributes['managed-services.codesphere.com/id'] AS service FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  UNION ALL\n  SELECT LogAttributes['targetId'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish')\n  UNION ALL\n  SELECT LogAttributes['managed-services.codesphere.com/id'] FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['container'] = 'postgres'\n) WHERE service != '' ORDER BY service"
+          "rawSql": "SELECT service, if(argMaxIf(name, time, name != '') AS service_name != '', concat(service_name, ' (', service, ')'), service) FROM (\n  SELECT Attributes['managed-services.codesphere.com/id'] AS service, Attributes['managed-services.codesphere.com/name'] AS name, TimeUnix AS time FROM otel_metrics_gauge WHERE $__timeFilter(TimeUnix) AND MetricName = 'cnpg_collector_up'\n  UNION ALL\n  SELECT LogAttributes['targetId'], '', Timestamp FROM otel_logs WHERE $__timeFilter(Timestamp) AND ServiceName = 'marketplace' AND LogAttributes['provider'] IN ('postgres', 'ferretdb', 'babelfish')\n  UNION ALL\n  SELECT LogAttributes['managed-services.codesphere.com/id'], LogAttributes['managed-services.codesphere.com/name'], Timestamp FROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['container'] = 'postgres'\n) WHERE service != '' GROUP BY service ORDER BY service_name, service"
         },
         "refresh": 2,
         "sort": 0,
@@ -284,7 +284,18 @@
         "w": 16,
         "h": 8
       },
-      "id": 3
+      "id": 3,
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "renameByName": {
+              "Service": "Service ID",
+              "Name": "Service name"
+            }
+          }
+        }
+      ]
     },
     {
       "type": "row",
@@ -431,7 +442,7 @@
           },
           "editorType": "sql",
           "format": 2,
-          "rawSql": "SELECT Timestamp AS timestamp, multiIf(\n    JSONExtractString(Body, 'record', 'message') != '', concat(JSONExtractString(Body, 'record', 'error_severity'), ': ', JSONExtractString(Body, 'record', 'message')),\n    JSONExtractString(Body, 'msg') != '', JSONExtractString(Body, 'msg'),\n    Body) AS body, multiIf(\n    JSONExtractString(Body, 'record', 'error_severity') IN ('ERROR', 'FATAL', 'PANIC'), 'error',\n    JSONExtractString(Body, 'record', 'error_severity') = 'WARNING', 'warning',\n    JSONExtractString(Body, 'record', 'error_severity') != '', 'info',\n    JSONExtractString(Body, 'level') IN ('error', 'fatal', 'panic'), 'error',\n    JSONExtractString(Body, 'level') IN ('warn', 'warning'), 'warning',\n    JSONExtractString(Body, 'level') = 'debug', 'debug',\n    multiSearchAnyCaseInsensitive(Body, ['error', 'fatal', 'panic']), 'error',\n    'info') AS level,\n  LogAttributes['managed-services.codesphere.com/id'] AS service, LogAttributes['pod'] AS pod, LogAttributes['container'] AS container,\n  JSONExtractString(Body, 'logger') AS logger, JSONExtractString(Body, 'record', 'user_name') AS user, JSONExtractString(Body, 'record', 'database_name') AS database\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) AND LogAttributes['pod'] IN (${pod:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY Timestamp DESC LIMIT 1000"
+          "rawSql": "SELECT Timestamp AS timestamp, multiIf(\n    JSONExtractString(Body, 'record', 'message') != '', concat(JSONExtractString(Body, 'record', 'error_severity'), ': ', JSONExtractString(Body, 'record', 'message')),\n    JSONExtractString(Body, 'msg') != '', JSONExtractString(Body, 'msg'),\n    Body) AS body, multiIf(\n    JSONExtractString(Body, 'record', 'error_severity') IN ('ERROR', 'FATAL', 'PANIC'), 'error',\n    JSONExtractString(Body, 'record', 'error_severity') = 'WARNING', 'warning',\n    JSONExtractString(Body, 'record', 'error_severity') != '', 'info',\n    JSONExtractString(Body, 'level') IN ('error', 'fatal', 'panic'), 'error',\n    JSONExtractString(Body, 'level') IN ('warn', 'warning'), 'warning',\n    JSONExtractString(Body, 'level') = 'debug', 'debug',\n    multiSearchAnyCaseInsensitive(Body, ['error', 'fatal', 'panic']), 'error',\n    'info') AS level,\n  LogAttributes['managed-services.codesphere.com/id'] AS service, LogAttributes['managed-services.codesphere.com/name'] AS service_name, LogAttributes['pod'] AS pod, LogAttributes['container'] AS container,\n  JSONExtractString(Body, 'logger') AS logger, JSONExtractString(Body, 'record', 'user_name') AS user, JSONExtractString(Body, 'record', 'database_name') AS database\nFROM otel_logs WHERE $__timeFilter(Timestamp) AND LogAttributes['managed-services.codesphere.com/id'] IN (${service:singlequote}) AND LogAttributes['pod'] IN (${pod:singlequote})\n  AND $__conditionalAll(positionCaseInsensitive(Body, '$search') > 0, $search)\nORDER BY Timestamp DESC LIMIT 1000"
         }
       ],
       "description": "Logs of the service pods (Postgres, the CNPG instance manager and the backup sidecar). Open a line for the raw JSON.",
