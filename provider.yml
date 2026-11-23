@@ -18,6 +18,18 @@ detailsSchema:
     hostname:
       type: string
       format: uri
+      title: Grafana
+    # The marketplace fills service_url_<server>_<port> for each server port.
+    service_url_otel-collector_4318:
+      type: string
+      readOnly: true
+      title: Collector endpoint (OTLP/HTTP)
+      description: In-cluster endpoint for the resource group's OTLP export (protocol HTTP, otlpToken as auth token).
+    service_url_otel-collector_4317:
+      type: string
+      readOnly: true
+      title: Collector endpoint (OTLP/gRPC)
+      description: In-cluster endpoint for OTLP/gRPC, with the otlpToken as bearer token.
   additionalProperties: false
 secretsSchema:
   type: object
