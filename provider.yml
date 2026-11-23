@@ -1,14 +1,14 @@
-name: managed-services-o11y
-schemaVersion: v0
+name: o11y
+schemaVersion: v1beta1
 backend:
   landscape:
     gitUrl: https://github.com/codesphere-cloud/managed-services-o11y
-author: Team o11y
+author: Codesphere
 category: Other
-description: A Codesphere landscape that ingests OpenTelemetry logs, traces and
-  metrics, stores them in a managed ClickHouse, and shows them in Grafana.
-displayName: Dirty o11y
-iconUrl: https://emoji.slack-edge.com/T01DXUTF5GV/dirty-o11y/0fef1341aa0bc615.png
+description: Logs, metrics and traces of your workspaces and services in one
+  place, per resource group. Based on OpenTelemetry, ClickHouse and Grafana.
+displayName: Codesphere Observability Stack
+iconUrl: /ide/assets/managed-services/o11y.svg
 configSchema:
   type: object
   properties: {}
