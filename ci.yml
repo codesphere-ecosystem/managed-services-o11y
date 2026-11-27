@@ -29,7 +29,7 @@ run:
         - 4318
     env:
       OTLP_TOKEN: ${{ vault.otlpToken }}
-      CLICKHOUSE_HOST: ms-clickhouse-v0-${{ team.id }}-landscape-${{ workspace.id }}-clickhouse.rg-${{ team.id }}
+      CLICKHOUSE_HOST: ms-clickhouse-v1beta1-${{ team.id }}-landscape-${{ workspace.id }}-clickhouse.rg-${{ team.id }}
       CLICKHOUSE_PORT: 9000
       CLICKHOUSE_DATABASE: app
       CLICKHOUSE_USER: admin
@@ -115,7 +115,7 @@ run:
       GF_DATABASE_USER: grafana
       GF_DATABASE_PASSWORD: ${{ vault.grafanaDbPassword }}
       GF_DATABASE_SSL_MODE: require
-      CLICKHOUSE_HOST: ms-clickhouse-v0-${{ team.id }}-landscape-${{ workspace.id }}-clickhouse.rg-${{ team.id }}
+      CLICKHOUSE_HOST: ms-clickhouse-v1beta1-${{ team.id }}-landscape-${{ workspace.id }}-clickhouse.rg-${{ team.id }}
       CLICKHOUSE_DATABASE: app
       CLICKHOUSE_USER: admin
       CLICKHOUSE_PASSWORD: ${{ vault.clickhousePassword }}
@@ -134,7 +134,7 @@ run:
   clickhouse:
     provider:
       name: clickhouse
-      schemaVersion: v0
+      schemaVersion: v1beta1
     plan:
       id: 0
       parameters:
